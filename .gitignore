@@ -1,0 +1,35 @@
+# 构建产物 / 本地环境
+/app/native/build/
+/app/native/app/build/
+/app/native/.gradle/
+/app/native/.idea/
+/app/native/local.properties
+*.iml
+
+# 已废弃的两版服务端（保留在本地，不入库）
+/server/
+/server-py/
+
+# 杂项
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+
+# 构建时从 app/web、admin、data/seed.json 自动同步，不入库
+/app/native/app/src/main/assets/web/
+/app/native/app/src/main/assets/admin/
+/app/native/app/src/main/assets/questions.json
+StudyOnTV-*.apk
+*.idsig
+*.jks
+studyontv-release.jks
+
+/app/server/
+
+/parent-ui/
+
+# Kotlin compiler cache
+.kotlin/
+
+/release-artifacts/
