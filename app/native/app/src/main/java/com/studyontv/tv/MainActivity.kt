@@ -12,8 +12,7 @@ open class MainActivity : Activity() {
     protected lateinit var web: WebView
     private var webReleased = false
     private var page = "quiz"
-    private var upCount = 0
-    private var lastUp = 0L
+    private val remote = RemoteKeys { startActivity(Intent(this, ParentActivity::class.java)) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,9 +29,15 @@ open class MainActivity : Activity() {
         page = if (this is GateActivity && reason != null && reason != "timeup") "lock?reason=$reason" else "quiz"
         createWeb()
         GateService.start(this)
-        if (this !is GateActivity) Updater.check(this) { info ->
+    }
+
+    /** 每次回到学习页都检查一次（6 小时内用缓存，不会频繁联网）；电视上 Activity 很少重建，只在 onCreate 检查会漏掉 */
+    private fun checkUpdate() {
+        if (this is GateActivity) return
+        Updater.check(this) { info ->
             val newer = Updater.newerThanCurrent(this, info) ?: return@check
             runOnUiThread {
+                if (isFinishing) return@runOnUiThread
                 val raw = DeviceBridge(this).updateInfo()
                 if (newer.force) startActivity(Intent(this, UpdateActivity::class.java).putExtra("payload", raw))
                 else if (::web.isInitialized && !webReleased) web.evaluateJavascript("window.SOTV_UPDATE&&SOTV_UPDATE($raw)", null)
@@ -71,33 +76,15 @@ open class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (webReleased) createWeb()
+        checkUpdate()
         if (::web.isInitialized && !webReleased) web.evaluateJavascript("window.SOTV_RESUME&&SOTV_RESUME()", null)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-            if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                val now = android.os.SystemClock.elapsedRealtime()
-                upCount = if (now - lastUp < 900) upCount + 1 else 1
-                lastUp = now
-                if (upCount >= 5) {
-                    upCount = 0
-                    startActivity(Intent(this, ParentActivity::class.java)); return true
-                }
-            } else upCount = 0
-        }
+        // 手机 / 平板的回车键交给网页输入框
         if (!DeviceBridge.isTv(this) && event.keyCode == KeyEvent.KEYCODE_ENTER) return super.dispatchKeyEvent(event)
-        val action = when (event.keyCode) {
-            KeyEvent.KEYCODE_DPAD_LEFT -> "move('left')"
-            KeyEvent.KEYCODE_DPAD_RIGHT -> "move('right')"
-            KeyEvent.KEYCODE_DPAD_UP -> "move('up')"
-            KeyEvent.KEYCODE_DPAD_DOWN -> "move('down')"
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> "select()"
-            KeyEvent.KEYCODE_BACK -> "back()"
-            else -> return super.dispatchKeyEvent(event)
-        }
-        if (event.action == KeyEvent.ACTION_DOWN && ::web.isInitialized && !webReleased) web.evaluateJavascript("window.TV&&TV.$action", null)
-        return true
+        val view = if (::web.isInitialized && !webReleased) web else null
+        return remote.handle(view, event) || super.dispatchKeyEvent(event)
     }
 
     override fun onDestroy() {

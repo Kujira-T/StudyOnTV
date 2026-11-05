@@ -25,26 +25,17 @@ class GateOverlay(
     private var web: WebView? = null
     private var attached = false
     private var currentReason = ""
-    private var upCount = 0
-    private var lastUp = 0L
+    private val remote = RemoteKeys { Bridge().openParent() }
     val isShowing: Boolean get() = attached
 
     fun show(reason: String): Boolean {
         if (attached) return true
+        handler.removeCallbacks(release); releaseScheduled = false
+        val reused = web != null
         val page = if (reason == "timeup") "quiz" else "lock?reason=$reason"
         val view = web ?: WebShell(context).create("about:blank").also { created ->
             created.addJavascriptInterface(Bridge(), "SOTVNative")
-            created.setOnKeyListener { _, key, event ->
-                if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener key == KeyEvent.KEYCODE_BACK
-                if (key == KeyEvent.KEYCODE_DPAD_UP && event.repeatCount == 0) {
-                    val now = android.os.SystemClock.elapsedRealtime()
-                    upCount = if (now - lastUp < 900) upCount + 1 else 1
-                    lastUp = now
-                    if (upCount >= 5) { upCount = 0; Bridge().openParent(); return@setOnKeyListener true }
-                } else if (event.repeatCount == 0) upCount = 0
-                if (key == KeyEvent.KEYCODE_BACK) return@setOnKeyListener true
-                WebShell(context).dispatchKey(created, key, event)
-            }
+            created.setOnKeyListener { _, _, event -> remote.handle(created, event) }
             web = created
             currentReason = reason
             created.loadUrl(Prefs.localBase(context) + "#/$page")
@@ -52,7 +43,7 @@ class GateOverlay(
         if (reason != currentReason) {
             currentReason = reason
             view.loadUrl(Prefs.localBase(context) + "#/$page")
-        }
+        } else if (reused) view.evaluateJavascript("window.SOTV_RESUME&&SOTV_RESUME()", null)
         val params = WindowManager.LayoutParams(-1, -1, windowType,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.OPAQUE)
         params.gravity = Gravity.TOP or Gravity.START
@@ -62,9 +53,10 @@ class GateOverlay(
             manager.addView(view, params)
             attached = true
             view.requestFocus()
+            MediaPause.pause(context)
             true
         } catch (e: Exception) {
-            hide()
+            destroy()
             false
         }
     }
@@ -72,13 +64,31 @@ class GateOverlay(
     fun suspend() {
         val view = web ?: return
         if (attached) try { manager.removeViewImmediate(view) } catch (_: Exception) { }
+        if (attached && !InputSupport.active) MediaPause.release(context)
         attached = false
     }
 
+    private val release = Runnable { destroy() }
+
+    /**
+     * 收起悬浮学习页。WebView 先保留 60 秒再销毁：孩子刚解锁又很快到时、或者家长调整规则时，
+     * 再次弹出不必重新加载整页（以前每次都黑屏重载 1–2 秒）。
+     */
+    private var releaseScheduled = false
+
     fun hide() {
+        if (web == null) return
+        suspend()
+        // hideAll() 每秒都会调用，只在第一次收起时安排销毁，否则计时会被不断推迟
+        if (!releaseScheduled) { releaseScheduled = true; handler.postDelayed(release, 60000) }
+    }
+
+    fun destroy() {
+        handler.removeCallbacks(release); releaseScheduled = false
         val view = web ?: return
         suspend()
         web = null
+        currentReason = ""
         view.destroy()
     }
 
@@ -92,6 +102,13 @@ class GateOverlay(
                 if (InputSupport.active) suspend()
             }
         }
+        @JavascriptInterface fun answerText(draft: String, prompt: String) {
+            handler.post {
+                web?.let { InputSupport.openText(context, it, draft, prompt) }
+                if (InputSupport.active) suspend()
+            }
+        }
+        @JavascriptInterface fun updateInfo(): String = ""
         @JavascriptInterface fun openParent() {
             handler.post {
                 GateService.hideGates()

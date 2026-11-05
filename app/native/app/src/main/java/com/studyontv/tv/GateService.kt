@@ -124,9 +124,18 @@ class GateService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /** 手机上从“最近任务”划掉应用时，部分系统会连带停止服务；2 秒后自动拉起 */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        scheduleRestart(this, 2000)
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
+        try { DeviceRuntime.learning.flushUsage() } catch (_: Exception) { }
+        if (Prefs.onboarded(this)) scheduleRestart(this, 5000)
         handler.removeCallbacks(tick)
-        hideAll(); updateAnchor(false)
+        overlay.destroy(); WatchAccessibilityService.hideGate(); updateAnchor(false)
         instance = null
         Prefs.setServiceRunning(this, false)
         super.onDestroy()
@@ -134,9 +143,28 @@ class GateService : Service() {
 
     companion object {
         private var instance: GateService? = null
+        val running: Boolean get() = instance != null
+
         fun start(context: Context) {
             val intent = Intent(context, GateService::class.java)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
+        }
+
+        /** 不抛异常的启动：后台启动前台服务在 Android 12+ 可能被拒绝（有悬浮窗 / 无障碍权限时通常允许） */
+        fun ensureRunning(context: Context) {
+            if (instance != null || !Prefs.onboarded(context)) return
+            try { start(context) } catch (e: Exception) { android.util.Log.w("StudyOnTV", "GateService restart refused", e) }
+        }
+
+        fun scheduleRestart(context: Context, delayMs: Long) {
+            try {
+                val intent = Intent(context, GateService::class.java)
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                val pending = if (Build.VERSION.SDK_INT >= 26) PendingIntent.getForegroundService(context, 7, intent, flags)
+                    else PendingIntent.getService(context, 7, intent, flags)
+                val alarm = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+                alarm.set(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, SystemClock.elapsedRealtime() + delayMs, pending)
+            } catch (e: Exception) { android.util.Log.w("StudyOnTV", "Cannot schedule restart", e) }
         }
         fun hasGate(): Boolean = WatchAccessibilityService.hasGate() || instance?.overlay?.isShowing == true
         fun hideGates() {

@@ -16,7 +16,25 @@ open class DeviceBridge(protected val activity: Activity, private val connection
     }
 
     @JavascriptInterface
+    fun answerText(draft: String, prompt: String) {
+        activity.runOnUiThread { web?.let { InputSupport.openText(activity, it, draft, prompt) } }
+    }
+
+    @JavascriptInterface
     fun apiToken(): String = AdminAuth.deviceToken
+
+    /** 连接页（家长已验证）里的按钮：权限设置 / 修改密码 */
+    @JavascriptInterface
+    fun openPermissions() {
+        if (!connectionAllowed) return
+        activity.runOnUiThread { activity.startActivity(Intent(activity, OnboardingActivity::class.java)) }
+    }
+
+    @JavascriptInterface
+    fun changePassword() {
+        if (!connectionAllowed) return
+        activity.runOnUiThread { (activity as? ParentActivity)?.changePassword() }
+    }
 
     @JavascriptInterface
     fun deviceInfo(): String = JSONObject().put("platform", if (isTv(activity)) "android-tv" else "android")
@@ -54,15 +72,17 @@ open class DeviceBridge(protected val activity: Activity, private val connection
     @JavascriptInterface
     fun updateInfo(): String {
         val info = Updater.newerThanCurrent(activity, Updater.cachedInfo(activity)) ?: return ""
-        return JSONObject().put("latest", info.latest).put("current", info.current)
-            .put("notes", info.notes).put("url", info.url).put("force", info.force).toString()
+        return Updater.toJson(info).put("current", Updater.currentVersion(activity)).toString()
     }
 
     @JavascriptInterface
     fun installUpdate(url: String, latest: String, notes: String) {
+        val cached = Updater.newerThanCurrent(activity, Updater.cachedInfo(activity))
+        val payload = if (cached != null && cached.url == url) Updater.toJson(cached) else JSONObject()
+            .put("latest", latest).put("notes", notes).put("url", url)
+        payload.put("current", BuildConfig.VERSION_NAME)
         activity.runOnUiThread {
-            activity.startActivity(Intent(activity, UpdateActivity::class.java).putExtra("payload", JSONObject()
-                .put("latest", latest).put("current", BuildConfig.VERSION_NAME).put("notes", notes).put("url", url).toString()))
+            activity.startActivity(Intent(activity, UpdateActivity::class.java).putExtra("payload", payload.toString()))
         }
     }
 

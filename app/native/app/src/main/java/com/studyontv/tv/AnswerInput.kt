@@ -17,15 +17,17 @@ object AnswerInput {
     var active = false
         private set
 
-    fun open(context: Context, web: WebView, voice: Boolean) {
+    /** 打开一个原生输入页（手机：手写 / 语音；电视：遥控器 + 系统输入法），结果经 SOTV_INPUT 回传给网页 */
+    fun open(context: Context, web: WebView, screen: Class<out Activity>, extras: Intent.() -> Unit = {}) {
         if (active) return
         active = true
         requestId = UUID.randomUUID().toString()
         target = WeakReference(web)
         if (context !is Activity) web.visibility = View.GONE
         try {
-            context.startActivity(Intent(context, AnswerInputActivity::class.java)
-                .putExtra("requestId", requestId).putExtra("voice", voice)
+            context.startActivity(Intent(context, screen)
+                .putExtra("requestId", requestId)
+                .apply(extras)
                 .apply {
                     if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
@@ -35,7 +37,7 @@ object AnswerInput {
             requestId = ""
             target.clear()
             web.visibility = View.VISIBLE
-            android.widget.Toast.makeText(context, "暂时无法打开输入页面，请使用文字作答", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, "暂时无法打开输入页面，请稍后重试", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 

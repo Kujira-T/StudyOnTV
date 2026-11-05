@@ -44,7 +44,7 @@ class AnswerInputActivity : Activity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
             if (Build.VERSION.SDK_INT >= 33) isAutoHandwritingEnabled = true
         }
-        if (savedInstanceState != null) text.setText(savedInstanceState.getString("draft", ""))
+        text.setText(savedInstanceState?.getString("draft") ?: intent.getStringExtra("draft").orEmpty())
         root.addView(text, LinearLayout.LayoutParams(-1, -2))
         status = TextView(this).apply { setTextColor(0xFFFFB020.toInt()); textSize = 14f }
         root.addView(status)

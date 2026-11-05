@@ -55,6 +55,12 @@ object AdminAuth {
         return randomToken().also { sessions[it] = System.currentTimeMillis() + 12 * 60 * 60 * 1000L }
     }
 
+    @Volatile private var verifiedAt = 0L
+
+    /** 刚在本机设置或验证过密码（2 分钟内）：从权限引导页进入家长设置时不必再输一次 */
+    fun markVerified() { verifiedAt = android.os.SystemClock.elapsedRealtime() }
+    fun recentlyVerified(): Boolean = verifiedAt > 0 && android.os.SystemClock.elapsedRealtime() - verifiedAt < 120000
+
     @Synchronized
     fun valid(token: String?): Boolean = token != null && (sessions[token] ?: 0) > System.currentTimeMillis()
 }

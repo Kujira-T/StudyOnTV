@@ -9,7 +9,12 @@ import org.json.JSONObject
 import java.util.Calendar
 import java.util.UUID
 
-class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", null, 4) {
+class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", null, 5) {
+    companion object {
+        val DEFAULT_PRAISE = listOf("太棒了！", "答对啦！", "完全正确！", "真厉害！", "好样的，继续保持！", "漂亮！你越来越熟练了")
+        val DEFAULT_ENCOURAGE = listOf("没关系，记住正确答案就好", "差一点点，下一题加油！", "错误也是学习的一部分", "别灰心，再接再厉！")
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE questions(id TEXT PRIMARY KEY, subject TEXT, level TEXT, difficulty INTEGER, stem TEXT NOT NULL, options TEXT NOT NULL, answer INTEGER NOT NULL, tip TEXT, enabled INTEGER DEFAULT 1, created_at INTEGER, details TEXT)")
         db.execSQL("CREATE TABLE kv(k TEXT PRIMARY KEY, v TEXT)")
@@ -23,6 +28,30 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
         if (oldVersion < 2) db.execSQL("ALTER TABLE questions ADD COLUMN details TEXT")
         if (oldVersion < 3) createReviews(db)
         if (oldVersion < 4) createProgress(db)
+        if (oldVersion < 5) compactUsage(db)
+    }
+
+    /**
+     * 旧版本每秒写一条 usage 事件，一天可达上万行，导致 /api/state、成长记录越来越慢（Issue #2：后台加载卡）。
+     * 升级时按小时合并成一条。
+     */
+    private fun compactUsage(db: SQLiteDatabase) {
+        val buckets = LinkedHashMap<Long, Long>()
+        db.rawQuery("SELECT payload,ts FROM events WHERE type='usage'", null).use { c ->
+            while (c.moveToNext()) {
+                val ms = try { JSONObject(c.getString(0)).optLong("milliseconds") } catch (_: Exception) { 0L }
+                val hour = c.getLong(1) / 3600000 * 3600000
+                buckets[hour] = (buckets[hour] ?: 0L) + ms
+            }
+        }
+        db.beginTransaction()
+        try {
+            db.execSQL("DELETE FROM events WHERE type='usage'")
+            buckets.forEach { (hour, ms) ->
+                if (ms > 0) db.execSQL("INSERT INTO events(type,payload,ts) VALUES(?,?,?)", arrayOf("usage", JSONObject().put("milliseconds", ms).toString(), hour))
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
     }
 
     private fun createProgress(db: SQLiteDatabase) {
@@ -107,6 +136,8 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             .put("wrongThreshold", 3).put("extraQuestions", 2)
             .put("difficultyRewardEnabled", false)
             .put("difficultyRewards", JSONObject().put("1", 1).put("2", 2).put("3", 3).put("4", 4).put("5", 5))
+            .put("praisePhrases", JSONArray(DEFAULT_PRAISE)).put("encouragePhrases", JSONArray(DEFAULT_ENCOURAGE))
+            .put("autoNextSeconds", 0).put("theme", "midnight")
             .put("version", 1)
         val saved = try { JSONObject(get("config", "{}")) } catch (e: Exception) { JSONObject() }
         saved.keys().forEach { defaults.put(it, saved.get(it)) }
@@ -150,6 +181,25 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
         }
         listOf("extraEnabled", "difficultyRewardEnabled", "allDay", "spacedRepetitionEnabled").forEach {
             if (input.has(it)) next.put(it, input.getBoolean(it))
+        }
+        for (key in listOf("praisePhrases", "encouragePhrases")) if (input.has(key)) {
+            val raw = input.getJSONArray(key)
+            val clean = JSONArray()
+            for (i in 0 until raw.length()) raw.optString(i).trim().takeIf { it.isNotEmpty() }?.let {
+                require(it.length <= 40) { "每句鼓励语不超过 40 个字" }
+                clean.put(it)
+            }
+            require(clean.length() <= 30) { "鼓励语最多 30 句" }
+            next.put(key, if (clean.length() == 0) JSONArray(if (key == "praisePhrases") DEFAULT_PRAISE else DEFAULT_ENCOURAGE) else clean)
+        }
+        if (input.has("theme")) {
+            require(input.getString("theme") in listOf("midnight", "daylight", "nord", "amber")) { "未知主题" }
+            next.put("theme", input.getString("theme"))
+        }
+        if (input.has("autoNextSeconds")) {
+            val value = input.getInt("autoNextSeconds")
+            require(value in 0..30) { "自动下一题需要为 0–30 秒，0 表示手动" }
+            next.put("autoNextSeconds", value)
         }
         if (input.has("difficultyRewards")) {
             val rewards = input.getJSONObject("difficultyRewards")
@@ -238,6 +288,17 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
         return items.length()
     }
 
+    fun deleteQuestions(ids: List<String>): Int {
+        val db = writableDatabase
+        var count = 0
+        db.beginTransaction()
+        try {
+            ids.forEach { count += db.delete("questions", "id=?", arrayOf(it)) }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+        return count
+    }
+
     fun deleteQuestion(id: String): Boolean = writableDatabase.delete("questions", "id=?", arrayOf(id)) > 0
 
     fun logEvent(type: String, payload: JSONObject) {
@@ -274,7 +335,10 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
     }
 
     fun todayStats(): JSONObject = stats(startOfToday(), Long.MAX_VALUE)
-    fun roundsDoneToday(): Int = todayStats().optInt("rounds")
+    // status() 每秒都会调用，这里直接计数，不再解析今天的全部事件
+    fun roundsDoneToday(): Int = readableDatabase.rawQuery("SELECT COUNT(*) FROM events WHERE type='quiz_pass' AND ts>=?", arrayOf(startOfToday().toString())).use {
+        if (it.moveToFirst()) it.getInt(0) else 0
+    }
 
     fun historyDays(days: Int = 7): JSONArray {
         val out = JSONArray()

@@ -39,17 +39,24 @@ object Foreground {
         return try {
             val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val now = System.currentTimeMillis()
-            val events = manager.queryEvents(now - 86400000, now)
+            // 以前每秒都查询过去 24 小时的全部事件，在电视上很耗 CPU；现在只查上次之后的新事件
+            val from = if (usageQueriedAt <= 0 || now - usageQueriedAt > 3600000 || now < usageQueriedAt) now - 86400000 else usageQueriedAt - 2000
+            val events = manager.queryEvents(from, now)
             val event = UsageEvents.Event()
             var latest: String? = null
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
                 if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) latest = event.packageName
             }
-            latest ?: manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 86400000, now)
-                ?.filter { it.lastTimeUsed > 0 }?.maxByOrNull { it.lastTimeUsed }?.packageName
+            usageQueriedAt = now
+            if (latest != null) usageLatest = latest
+            usageLatest ?: manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 86400000, now)
+                ?.filter { it.lastTimeUsed > 0 }?.maxByOrNull { it.lastTimeUsed }?.packageName?.also { usageLatest = it }
         } catch (_: Exception) { null }
     }
+
+    @Volatile private var usageQueriedAt = 0L
+    @Volatile private var usageLatest: String? = null
 
     fun hasUsageAccess(context: Context): Boolean = try {
         val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager

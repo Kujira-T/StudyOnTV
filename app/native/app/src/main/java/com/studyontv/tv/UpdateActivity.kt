@@ -18,6 +18,9 @@ import org.json.JSONObject
 
 
 class UpdateActivity : Activity() {
+    private var force = false
+    private var sha256 = ""
+    private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,27 +39,29 @@ class UpdateActivity : Activity() {
             .filter { !it.contains("[force]", true) && it.isNotBlank() }
             .joinToString("\n")
         val url = data.optString("url", "")
+        force = data.optBoolean("force", false)
+        sha256 = data.optString("sha256", "")
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
-        root.setBackgroundColor(0xFF0A0A0C.toInt())
+        root.setBackgroundColor(0xFF121212.toInt())
         root.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-        root.setPadding(dp(120), dp(36), dp(120), dp(24))
+        root.setPadding(dp(if (DeviceBridge.isTv(this)) 120 else 24), dp(36), dp(if (DeviceBridge.isTv(this)) 120 else 24), dp(24))
 
-        root.addView(label(getString(R.string.app_name) + " · TV 版", 16f, 0xFFFFB020.toInt(), 4))
+        root.addView(label(getString(R.string.app_name) + if (DeviceBridge.isTv(this)) " · 电视版" else " · 手机 / 平板版", 16f, TvUi.ACCENT, 4))
         root.addView(label("发现新版本 v$latest", 30f, Color.WHITE, 8))
-        root.addView(label("当前 v$current · 必须更新后才能继续使用", 16f, 0xFFA9B7CE.toInt(), 14))
+        root.addView(label("当前 v$current" + if (force) " · 必须更新后才能继续使用" else "", 16f, 0xFFB3B3B3.toInt(), 14))
 
         if (notes.isNotEmpty()) {
             root.addView(label("更新内容", 13f, 0xFF8E8E96.toInt(), 6, Gravity.START))
 
             val note = TextView(this)
             note.text = notes
-            note.setTextColor(0xFFD6DEEC.toInt())
+            note.setTextColor(0xFFE0E0E0.toInt())
             note.textSize = 15f
             note.setLineSpacing(dp(8).toFloat(), 1.05f)
             note.setPadding(dp(28), dp(20), dp(28), dp(20))
-            note.background = solid(0xFF141416.toInt(), 16)
+            note.background = solid(0xFF1F1F1F.toInt(), 16)
 
             val scroll = ScrollView(this)
             scroll.addView(note)
@@ -67,19 +72,20 @@ class UpdateActivity : Activity() {
         val spacer = View(this)
         root.addView(spacer, LinearLayout.LayoutParams(1, dp(22)))
 
-        val go = TextView(this)
-        go.text = if (ApkInstaller.alreadyDownloaded(this, 0)) "开始安装" else "立即更新"
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        lateinit var go: android.widget.Button
+        go = TvUi.button(this, if (ApkInstaller.alreadyDownloaded(this, 0)) "开始安装" else "立即更新", true) { startUpdate(url, go) }
         go.textSize = 20f
-        go.gravity = Gravity.CENTER
-        go.setTextColor(0xFF14100A.toInt())
-        go.background = gradient(0xFFFFC24A.toInt(), 0xFFFF6A1F.toInt(), 30)
-        go.setOnClickListener { startUpdate(url, go) }
-        root.addView(go, LinearLayout.LayoutParams(dp(320), dp(58)))
+        buttons.addView(go, LinearLayout.LayoutParams(dp(if (DeviceBridge.isTv(this)) 260 else 180), dp(58)))
+        if (!force) buttons.addView(TvUi.button(this, "以后再说") { finish() }, LinearLayout.LayoutParams(dp(if (DeviceBridge.isTv(this)) 180 else 130), dp(58)).apply { leftMargin = dp(16) })
+        root.addView(buttons)
 
-        root.addView(label("下载后覆盖安装即可，题库和设置不会丢", 12f, 0xFF6E8BC4.toInt(), 10))
+        status = label("下载后覆盖安装即可，题库和设置不会丢", 12f, 0xFF8A8A8A.toInt(), 10)
+        root.addView(status)
 
-        setContentView(root)
+        setContentView(ScrollView(this).apply { isFillViewport = true; setBackgroundColor(0xFF121212.toInt()); addView(root) })
         if (url.isEmpty()) go.isEnabled = false
+        go.requestFocus()
         if (intent.getBooleanExtra("auto", false) && url.isNotEmpty()) {
             go.post { startUpdate(url, go) }
         }
@@ -102,6 +108,7 @@ class UpdateActivity : Activity() {
 
     
     private fun startUpdate(url: String, button: TextView) {
+        if (!button.isEnabled) return
         if (url.isEmpty()) { button.text = "没有下载地址"; return }
 
         val ready = ApkInstaller.apkFile(this)
@@ -116,9 +123,9 @@ class UpdateActivity : Activity() {
         button.isEnabled = false
         button.text = "下载中 0%"
         Thread {
-            val file = ApkInstaller.download(this, url) { percent ->
+            val file = ApkInstaller.download(this, url, sha256, { source -> runOnUiThread { status.text = "下载线路：$source" } }) { percent ->
                 runOnUiThread {
-                    button.text = if (percent in 1..99) "下载中 $percent%" else "正在安装…"
+                    button.text = if (percent < 0) "下载中…" else if (percent < 100) "下载中 $percent%" else "正在安装…"
                 }
             }
             runOnUiThread {
@@ -127,14 +134,16 @@ class UpdateActivity : Activity() {
                 } else {
                     button.isEnabled = true
                     button.text = "下载失败，重试"
+                    status.text = ApkInstaller.lastError.ifEmpty { "所有下载线路都失败了，请检查网络后重试" }
                 }
+                button.requestFocus()
             }
         }.apply { isDaemon = true }.start()
     }
 
     
     @Deprecated("Deprecated in Java")
-    override fun onBackPressed() = Unit
+    override fun onBackPressed() { if (!force) finish() }
 
     @Suppress("DEPRECATION")
     private fun immersive() {

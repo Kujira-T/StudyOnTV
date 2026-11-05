@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name=".TvTextInputActivity" android:exported="false" android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+    </application>
+</manifest>

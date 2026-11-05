@@ -32,6 +32,13 @@ object Prefs {
     fun setUpdateCheckedAt(c: Context, v: Long) = sp(c).edit().putLong("update_checked_at", v).apply()
     fun updateApi(c: Context): String = sp(c).getString("update_api", "") ?: ""
     fun setUpdateApi(c: Context, v: String) = sp(c).edit().putString("update_api", v).apply()
+    /** null 表示使用默认镜像列表 */
+    fun updateMirrors(c: Context): String? = sp(c).getString("update_mirrors", null)
+    fun setUpdateMirrors(c: Context, v: String?) = sp(c).edit().apply { if (v == null) remove("update_mirrors") else putString("update_mirrors", v) }.apply()
+    fun updateLastSource(c: Context): String = sp(c).getString("update_last_source", "") ?: ""
+    fun setUpdateLastSource(c: Context, v: String) = sp(c).edit().putString("update_last_source", v).apply()
+    fun updateLog(c: Context): String = sp(c).getString("update_log", "") ?: ""
+    fun setUpdateLog(c: Context, v: String) = sp(c).edit().putString("update_log", v).apply()
 
     
     fun updateInProgress(c: Context): Boolean = sp(c).getLong("update_started_at", 0L).let { it > 0 && System.currentTimeMillis() - it < 10 * 60 * 1000 }

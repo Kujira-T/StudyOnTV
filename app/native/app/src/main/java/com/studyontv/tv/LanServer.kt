@@ -36,7 +36,8 @@ class LanServer(
     private val port: Int = 8099
 ) {
     private var socket: ServerSocket? = null
-    private val pool = Executors.newFixedThreadPool(if (BuildConfig.FLAVOR == "tv") 3 else 6)
+    // 浏览器会并发 6 个连接加载面板，线程太少会排队；静态文件已缓存压缩，CPU 开销很小
+    private val pool = Executors.newFixedThreadPool(if (BuildConfig.FLAVOR == "tv") 4 else 6)
     @Volatile private var running = false
     var boundPort: Int = port
         private set
@@ -137,6 +138,7 @@ class LanServer(
                 return json(out, 200, info)
             }
             path == "/api/state" && method == "GET" -> {
+                DeviceRuntime.learning.flushUsage()
                 return json(out, 200, JSONObject()
                     .put("config", store.config())
                     .put("today", store.todayStats())
@@ -167,18 +169,47 @@ class LanServer(
                     json(out, 200, JSONObject().put("error", "bad_question").put("message", e.message ?: ""))
                 }
             }
+            path == "/api/questions/delete" && method == "POST" -> {
+                val ids = JSONObject(body).getJSONArray("ids")
+                require(ids.length() in 1..5000) { "请选择要删除的题目" }
+                return json(out, 200, JSONObject().put("ok", true).put("deleted", store.deleteQuestions((0 until ids.length()).map { ids.getString(it) })))
+            }
             path.startsWith("/api/questions/") && method == "DELETE" -> {
                 val id = path.removePrefix("/api/questions/")
                 return json(out, 200, JSONObject().put("ok", store.deleteQuestion(id)))
             }
             path == "/api/history" && method == "GET" -> {
+                DeviceRuntime.learning.flushUsage()
                 val days = Regex("days=(\\d+)").find(query)?.groupValues?.get(1)?.toIntOrNull() ?: 7
                 return json(out, 200, JSONObject().put("items", store.historyDays(days)))
             }
             path == "/api/events" && method == "GET" -> {
                 return json(out, 200, JSONObject().put("items", store.recentEvents(q["limit"]?.toIntOrNull() ?: 50)))
             }
-            path == "/api/grading" && method == "GET" -> return json(out, 200, GradingService.settings(store))
+            path == "/api/grading" && method == "GET" -> return json(out, 200, GradingService.settings(store).put("providers", GradingService.providers()))
+            path == "/api/grading/test" && method == "POST" -> return json(out, 200, GradingService.test(store, JSONObject(body.ifEmpty { "{}" })))
+            path == "/api/grading/models" && method == "POST" -> return json(out, 200, GradingService.models(store, JSONObject(body.ifEmpty { "{}" })))
+            path == "/api/update" && method == "GET" -> return json(out, 200, Updater.status(context))
+            path == "/api/update" && method == "PUT" -> return json(out, 200, Updater.saveSettings(context, JSONObject(body)))
+            path == "/api/update/check" && method == "POST" -> {
+                // 检查可能要依次尝试多个来源（最长约 1 分钟），放到后台，面板轮询 GET /api/update
+                Updater.startCheck(context)
+                return json(out, 200, Updater.status(context))
+            }
+            path == "/api/password" && method == "POST" -> {
+                val input = JSONObject(body)
+                if (!AdminAuth.verify(context, input.optString("current"))) return json(out, 403, err("wrong_password").put("message", "当前密码不正确，连续错误 5 次后需等待一分钟"))
+                AdminAuth.setPassword(context, input.optString("password"))
+                return json(out, 200, JSONObject().put("ok", true))
+            }
+            path == "/api/device" && method == "GET" -> return json(out, 200, JSONObject().put("name", Prefs.deviceName(context))
+                .put("version", BuildConfig.VERSION_NAME).put("flavor", BuildConfig.FLAVOR).put("ip", localIp() ?: "").put("port", boundPort))
+            path == "/api/device" && method == "PUT" -> {
+                val name = JSONObject(body).optString("name").trim()
+                require(name.length in 1..32) { "设备名称需要 1–32 个字" }
+                Prefs.setDeviceName(context, name)
+                return json(out, 200, JSONObject().put("ok", true).put("name", name))
+            }
             path == "/api/grading" && method == "PUT" -> return json(out, 200, GradingService.save(store, JSONObject(body)))
             path == "/api/reviews" && method == "GET" -> return json(out, 200, JSONObject().put("items", store.reviews(q["state"] ?: "pending")))
             path.startsWith("/api/reviews/") && method == "POST" -> {
@@ -219,13 +250,17 @@ class LanServer(
 
         
         if (method != "GET") return json(out, 405, err("method_not_allowed"))
-        serveStatic(path, out)
+        serveStatic(path, out, headers["accept-encoding"]?.contains("gzip") == true, headers["if-none-match"])
     }
 
 
 
     
-    private fun serveStatic(path: String, out: OutputStream) {
+    /** gzip 后的静态文件缓存（资源随 APK 固定不变，压缩一次即可） */
+    private val gzipCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+    private val etag = "\"" + BuildConfig.VERSION_CODE + "-" + BuildConfig.VERSION_NAME + "\""
+
+    private fun serveStatic(path: String, out: OutputStream, gzip: Boolean, ifNoneMatch: String?) {
         val (assetPath, contentType) = when {
             path == "/" || path == "/index.html" -> "web/index.html" to "text/html; charset=utf-8"
             path.startsWith("/admin/assets/") -> "admin" + path.removePrefix("/admin") to mime(path)
@@ -233,9 +268,22 @@ class LanServer(
             path.startsWith("/assets/") -> "web" + path to mime(path)
             else -> "web/index.html" to "text/html; charset=utf-8"
         }
+        if (assetPath.contains("..")) return reply(out, 404, "text/plain; charset=utf-8", "404".toByteArray())
+        // 带哈希的打包文件和字体可以长期缓存；页面本身每次校验（ETag = 版本号，升级后自动失效）
+        val hashed = Regex("-[A-Za-z0-9_-]{8}\\.(js|css)$").containsMatchIn(assetPath) || assetPath.contains("/vendor/")
+        val cache = if (hashed) "public, max-age=31536000, immutable" else "no-cache"
+        if (ifNoneMatch == etag) return reply(out, 304, null, null, mapOf("ETag" to etag, "Cache-Control" to cache))
         try {
-            val bytes = assets.open(assetPath).use { it.readBytes() }
-            reply(out, 200, contentType, bytes)
+            val compressible = contentType.startsWith("text/") || contentType.contains("javascript") || contentType.contains("json") || contentType.contains("svg")
+            val extra = mutableMapOf("ETag" to etag, "Cache-Control" to cache)
+            val bytes = if (gzip && compressible) {
+                extra["Content-Encoding"] = "gzip"; extra["Vary"] = "Accept-Encoding"
+                gzipCache.getOrPut(assetPath) {
+                    val raw = assets.open(assetPath).use { it.readBytes() }
+                    ByteArrayOutputStream().also { buf -> java.util.zip.GZIPOutputStream(buf).use { it.write(raw) } }.toByteArray()
+                }
+            } else assets.open(assetPath).use { it.readBytes() }
+            reply(out, 200, contentType, bytes, extra)
         } catch (e: Exception) {
             reply(out, 404, "text/plain; charset=utf-8", "404".toByteArray())
         }
@@ -248,6 +296,10 @@ class LanServer(
         path.endsWith(".png") -> "image/png"
         path.endsWith(".jpg") -> "image/jpeg"
         path.endsWith(".svg") -> "image/svg+xml"
+        path.endsWith(".woff2") -> "font/woff2"
+        path.endsWith(".woff") -> "font/woff"
+        path.endsWith(".ttf") -> "font/ttf"
+        path.endsWith(".txt") -> "text/plain; charset=utf-8"
         else -> "application/octet-stream"
     }
 
@@ -257,14 +309,15 @@ class LanServer(
 
     private fun err(code: String) = JSONObject().put("error", code)
 
-    private fun reply(out: OutputStream, code: Int, contentType: String?, bytes: ByteArray?) {
+    private fun reply(out: OutputStream, code: Int, contentType: String?, bytes: ByteArray?, extra: Map<String, String> = emptyMap()) {
         val body = bytes ?: ByteArray(0)
         val head = StringBuilder()
         head.append("HTTP/1.1 ").append(code).append(" ").append(reason(code)).append("\r\n")
         if (contentType != null) head.append("Content-Type: ").append(contentType).append("\r\n")
         head.append("Content-Length: ").append(body.size).append("\r\n")
         head.append("Connection: close\r\n")
-        head.append("Cache-Control: no-store\r\n")
+        if (!extra.containsKey("Cache-Control")) head.append("Cache-Control: no-store\r\n")
+        extra.forEach { (k, v) -> head.append(k).append(": ").append(v).append("\r\n") }
         head.append("Access-Control-Allow-Origin: *\r\n")
         head.append("Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS\r\n")
         head.append("Access-Control-Allow-Headers: Content-Type,X-Admin-Token,Authorization,X-Admin-Key,X-Device-Token\r\n")
@@ -276,7 +329,7 @@ class LanServer(
     }
 
     private fun reason(code: Int) = when (code) {
-        200 -> "OK"; 204 -> "No Content"; 401 -> "Unauthorized"
+        200 -> "OK"; 204 -> "No Content"; 304 -> "Not Modified"; 400 -> "Bad Request"; 401 -> "Unauthorized"; 403 -> "Forbidden"
         404 -> "Not Found"; 405 -> "Method Not Allowed"; else -> "OK"
     }
 

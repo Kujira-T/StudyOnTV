@@ -27,10 +27,10 @@ class OnboardingActivity : Activity() {
         override fun run() { refresh(); handler.postDelayed(this, 1000) }
     }
     private val tv get() = DeviceBridge.isTv(this)
-    private val foreground get() = if (tv) 0xFFF3F4F6.toInt() else 0xFF2E3931.toInt()
-    private val muted get() = if (tv) 0xFF9DA5AF.toInt() else 0xFF81907F.toInt()
-    private val border get() = if (tv) 0xFF2D323B.toInt() else 0xFFE5EADF.toInt()
-    private val accent get() = 0xFFF0AD64.toInt()
+    private val foreground get() = if (tv) 0xFFFFFFFF.toInt() else 0xFF2E3931.toInt()
+    private val muted get() = if (tv) 0xFFB3B3B3.toInt() else 0xFF81907F.toInt()
+    private val border get() = if (tv) 0xFF2E2E2E.toInt() else 0xFFE5EADF.toInt()
+    private val accent get() = if (tv) TvUi.ACCENT else 0xFFF0AD64.toInt()
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun shape(color: Int, stroke: Int = color, radius: Int = 18, width: Int = 1) = GradientDrawable().apply {
         setColor(color); cornerRadius = dp(radius).toFloat(); setStroke(dp(width).coerceAtLeast(1), stroke)
@@ -43,12 +43,12 @@ class OnboardingActivity : Activity() {
         text = label; textSize = 15f; isAllCaps = false; elevation = 0f; stateListAnimator = null
         minWidth = 0; minimumWidth = 0; minHeight = 0; minimumHeight = 0
         setPadding(dp(16), 0, dp(16), 0)
-        setTextColor(if (primary) 0xFF352819.toInt() else this@OnboardingActivity.foreground)
+        setTextColor(if (primary) (if (tv) TvUi.ACCENT_INK else 0xFF352819.toInt()) else this@OnboardingActivity.foreground)
         backgroundTintList = null
-        val normal = if (primary) accent else if (tv) 0xFF20242B.toInt() else 0xFFF7F9F3.toInt()
+        val normal = if (primary) accent else if (tv) 0xFF1F1F1F.toInt() else 0xFFF7F9F3.toInt()
         background = StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_focused), shape(normal, if (tv) 0xFFFFD397.toInt() else 0xFFC3823D.toInt(), 13, 2))
-            addState(intArrayOf(android.R.attr.state_pressed), shape(if (primary) 0xFFE29A4D.toInt() else normal, accent, 13, 2))
+            addState(intArrayOf(android.R.attr.state_focused), shape(if (tv && !primary) 0xFF2C2C2C.toInt() else normal, if (tv) TvUi.FOCUS else 0xFFC3823D.toInt(), 13, 2))
+            addState(intArrayOf(android.R.attr.state_pressed), shape(normal, accent, 13, 2))
             addState(intArrayOf(), shape(normal, if (primary) normal else border, 13))
         }
         setOnClickListener { action() }
@@ -64,7 +64,7 @@ class OnboardingActivity : Activity() {
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(24), dp(if (tv) 20 else 28), dp(24), dp(24))
-            setBackgroundColor(if (tv) 0xFF0D0F13.toInt() else 0xFFF7F9F4.toInt())
+            setBackgroundColor(if (tv) 0xFF121212.toInt() else 0xFFF7F9F4.toInt())
         }
         val width = minOf(resources.displayMetrics.widthPixels - dp(48), dp(960))
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -73,9 +73,9 @@ class OnboardingActivity : Activity() {
         content.addView(text("权限按需开启，稍后随时可以调整。", 14f, muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val mode = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = shape(if (tv) 0xFF241E17.toInt() else 0xFFFFF2DF.toInt())
+            background = shape(if (tv) 0xFF10261A.toInt() else 0xFFFFF2DF.toInt())
         }
-        modeTitle = text("", 15f, if (tv) 0xFFF0C391.toInt() else 0xFF936D36.toInt(), true)
+        modeTitle = text("", 15f, if (tv) TvUi.ACCENT else 0xFF936D36.toInt(), true)
         modeDescription = text("", 13f, muted)
         mode.addView(modeTitle)
         mode.addView(modeDescription, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
@@ -91,8 +91,10 @@ class OnboardingActivity : Activity() {
             permission("无障碍服务", "帮助及时识别应用切换", android.R.drawable.ic_menu_manage, { WatchAccessibilityService.connected }) {
                 openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             },
-            permission("后台运行", "减少系统清理，适合电视常驻", android.R.drawable.ic_lock_idle_alarm, null) {
-                openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, true)
+            permission("后台运行", "关闭电池优化，减少系统清理", android.R.drawable.ic_lock_idle_alarm,
+                if (android.os.Build.VERSION.SDK_INT >= 23) ({ ignoringBattery() }) else null) {
+                if (android.os.Build.VERSION.SDK_INT >= 23 && !ignoringBattery()) openSettings(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, true, Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                else openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, true)
             }
         )
         val columns = if (resources.displayMetrics.widthPixels / resources.displayMetrics.density >= 720) 2 else 1
@@ -119,16 +121,16 @@ class OnboardingActivity : Activity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
-            background = shape(if (tv) 0xFF171B21.toInt() else 0xFFFFFFFF.toInt(), border)
+            background = shape(if (tv) 0xFF1F1F1F.toInt() else 0xFFFFFFFF.toInt(), border)
         }
         card.addView(ImageView(this).apply {
-            setImageResource(icon); setColorFilter(if (tv) accent else 0xFFB58A51.toInt())
+            setImageResource(icon); setColorFilter(if (tv) 0xFFB3B3B3.toInt() else 0xFFB58A51.toInt())
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LinearLayout.LayoutParams(dp(26), dp(26)).apply { rightMargin = dp(14) })
         val copy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         copy.addView(text(title, 16f, bold = true))
         copy.addView(text(description, 12f, muted), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
-        val status = text(if (enabled == null) "按设备设置" else "", 12f, muted)
+        val status = text(if (enabled == null) "按设备设置（部分电视在“应用管理”里设置自启动）" else "", 12f, muted)
         copy.addView(status, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
         if (enabled != null) rows.add(PermissionRow(status, enabled))
         card.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
@@ -136,10 +138,15 @@ class OnboardingActivity : Activity() {
         return card
     }
 
-    private fun openSettings(action: String, packageSpecific: Boolean = false) {
+    private fun ignoringBattery(): Boolean = try {
+        (getSystemService(POWER_SERVICE) as android.os.PowerManager).isIgnoringBatteryOptimizations(packageName)
+    } catch (_: Exception) { false }
+
+    private fun openSettings(action: String, packageSpecific: Boolean = false, fallback: String? = null) {
         GateService.openingSystemPage()
         val options = mutableListOf(Intent(action).apply { if (packageSpecific) data = Uri.parse("package:$packageName") })
         if (packageSpecific) options.add(Intent(action))
+        if (fallback != null) options.add(Intent(fallback))
         options.add(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
         options.add(Intent(Settings.ACTION_SETTINGS))
         for (intent in options) try { startActivity(intent); return } catch (_: Exception) { }
@@ -160,7 +167,7 @@ class OnboardingActivity : Activity() {
         rows.forEach {
             val enabled = it.enabled()
             it.status.text = if (enabled) "已开启" else "未开启"
-            it.status.setTextColor(if (enabled) (if (tv) 0xFFA6C892.toInt() else 0xFF6B8D57.toInt()) else muted)
+            it.status.setTextColor(if (enabled) (if (tv) TvUi.ACCENT else 0xFF6B8D57.toInt()) else muted)
         }
         val overlay = GateOverlay.canDraw(this)
         val usage = Foreground.hasUsageAccess(this)

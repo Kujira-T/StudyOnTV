@@ -18,7 +18,7 @@ This project is linked with and endorses the [LINUX DO](https://linux.do) commun
 
 ## Parent management
 
-The controlled device hosts its own local HTTP panel. Parents connect over the same network and enter the management password set during initial setup. Tap the application title five times, or press D-pad Up five times, to reopen the password-protected connection screen.
+The controlled device hosts its own local HTTP panel. Parents connect over the same network and enter the management password set during initial setup. Tap the application title five times, or press D-pad Up five times while focus is at the top, to reopen the password-protected connection screen.
 
 The panel separates rules, question banks, grading and usage records. APIs require authentication as well; the former six-digit access code and unauthenticated question-bank access have been removed.
 

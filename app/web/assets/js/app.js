@@ -47,7 +47,7 @@
   }
   function loadState(callback) {
     request('/api/state', null, function (error, result) {
-      if (!error) { state.config = result.config; state.learning = result.learning; pill(); }
+      if (!error) { state.config = result.config; state.learning = result.learning; pill(); applyTheme(result.config.theme); }
       if (callback) callback(error, result);
     });
   }
@@ -71,7 +71,7 @@
         state.lockReason = '';
         show('lock'); $('lockTitle').textContent = '已解锁使用时间';
         $('lockDesc').textContent = '还可以使用 ' + Math.ceil(state.learning.remainingSeconds / 60) + ' 分钟';
-        $('lockIcon').textContent = '✓'; $('lockNote').textContent = '';
+        icon($('lockIcon'), 'check'); $('lockNote').textContent = '';
         $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="home">返回桌面</button>';
         focusDefault(); return;
       }
@@ -89,15 +89,25 @@
     $('qMode').textContent = (round.extra ? '加练任务' : round.mode === 'streak' ? '连续答对' : round.mode === 'practice' ? '自由练习' : '本组任务') + ' · ' + new Array((item.difficulty || 2) + 1).join('★');
     $('qPool').textContent = round.extraPool > 0 ? '加练池还剩 ' + round.extraPool + ' 题' : '';
     $('qDots').textContent = round.mode === 'streak' ? '连续答对 ' + round.streak + ' 题' : '';
+    var qLength = (item.q || '').length;
+    $('qText').className = 'question' + (qLength > 120 ? ' longer' : qLength > 56 ? ' long' : '');
     var options = $('qOptions'); options.innerHTML = '';
+    var longest = 0;
+    (item.a || []).forEach(function (value) { longest = Math.max(longest, String(value).length); });
+    options.className = 'options' + ((item.a || []).length > 4 ? ' many' : '') + (longest > 26 ? ' wordy' : '');
     if (item.type === 'text' || item.type === 'subjective') {
       var input = document.createElement('textarea'); input.id = 'writtenAnswer'; input.className = 'written-answer';
       input.placeholder = item.type === 'subjective' ? '写下您的思路和答案…' : '请输入答案'; input.maxLength = 10000; input.autocomplete = 'off'; input.rows = 4;
       input.value = state.draft.text;
       input.oninput = function () { state.draft.text = input.value; };
+      if (isTv()) {
+        // 遥控器无法直接在网页输入框里打字：按 OK 打开原生输入框（可调出系统输入法 / 语音）
+        input.readOnly = true; input.className += ' focusable'; input.setAttribute('data-action', 'type-answer');
+        input.placeholder = '按 OK 键输入答案';
+      }
       options.appendChild(input);
       var tools = document.createElement('div'); tools.className = 'input-tools';
-      if (!document.documentElement.classList.contains('tv-device')) {
+      if (!isTv()) {
         tools.innerHTML = '<button class="btn btn-ghost focusable" data-action="voice">语音输入</button><button class="btn btn-ghost focusable" data-action="handwrite">手写作答</button>';
         options.appendChild(tools);
       }
@@ -135,7 +145,7 @@
   }
   function submit() {
     if (state.busy || !state.round) return;
-    var round = state.round, written = $('writtenAnswer');
+    var round = state.round, item = round.question, written = $('writtenAnswer');
     if (written ? (!written.value.trim() && !state.draft.drawing) : !state.selected.length) { toast('请先填写或选择答案'); return; }
     state.busy = true;
     request('/api/quiz/answer', { roundId: round.id, nonce: round.nonce, selections: state.selected, text: written ? written.value : '', drawing: state.draft ? state.draft.drawing : '' }, function (error, result) {
@@ -148,28 +158,66 @@
         if (result.correctIndices.indexOf(i) >= 0) el.className += ' right';
         else if (state.selected.indexOf(i) >= 0) el.className += ' wrong';
       });
-      if (written && !result.correct) toast('答案：' + result.answerText);
-      else if (result.tip) toast(result.tip);
-      nextTimer = window.setTimeout(function () {
-        state.busy = false;
-        if (state.screen !== 'quiz') return;
-        if (result.finished) {
-          state.round = null;
-          if (result.passed) {
-            if (result.status.reason) { lock(result.status.reason); toast('奖励已保存，达到可用时段后使用'); return; }
-            show('lock'); $('lockTitle').textContent = '任务完成'; $('lockIcon').textContent = '✓';
-            $('lockDesc').textContent = '已解锁 ' + result.rewardMinutes + ' 分钟'; $('lockNote').textContent = '';
-            $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="home">返回桌面</button>';
-            focusDefault();
-            window.setTimeout(function () { nativeCall('exitToLauncher'); }, 1300);
-          } else { toast('本组未通过，再试一组'); start(); }
-        } else { state.round = result.next; renderQuestion(); }
-      }, result.correct ? 600 : 1500);
+      state.feedback = result;
+      showFeedback(result, item, written);
+      var auto = +state.config.autoNextSeconds || 0;
+      if (auto > 0) nextTimer = window.setTimeout(proceed, auto * 1000);
     });
+  }
+  var PRAISE = ['太棒了！', '答对啦！', '完全正确！', '真厉害！', '好样的，继续保持！', '漂亮！你越来越熟练了'];
+  var ENCOURAGE = ['没关系，记住正确答案就好', '差一点点，下一题加油！', '错误也是学习的一部分', '别灰心，再接再厉！'];
+  function phrase(list, fallback) {
+    var pool = (list && list.length ? list : fallback).filter(function (v) { return v && String(v).trim(); });
+    if (!pool.length) pool = fallback;
+    return String(pool[Math.floor(Math.random() * pool.length)]);
+  }
+  // 答题结果显示在题目下方（参考多邻国），孩子看完后自己按“继续”进入下一题（Issue #3）
+  function showFeedback(result, item, written) {
+    var box = $('qFeedback'), c = state.config, right = !!result.correct;
+    var title = right ? phrase(c.praisePhrases, PRAISE) : phrase(c.encouragePhrases, ENCOURAGE);
+    if (right && state.round && state.round.mode !== 'practice' && result.next && result.next.streak >= 3) title = '连续答对 ' + result.next.streak + ' 题！' + title;
+    var answer = '';
+    if (!right) {
+      if (written) answer = result.answerText;
+      else answer = (result.correctIndices || []).map(function (i) { return String.fromCharCode(65 + i) + '. ' + (item.a || [])[i]; }).join('　');
+    }
+    box.className = 'feedback show ' + (right ? 'is-right' : 'is-wrong');
+    $('fbIcon').textContent = right ? '✓' : '!';
+    $('fbTitle').textContent = title;
+    $('fbAnswer').textContent = answer ? '正确答案：' + answer : '';
+    $('fbTip').textContent = result.tip ? '解析：' + result.tip : '';
+    var go = $('fbNext');
+    go.textContent = result.finished ? '查看结果' : '继续';
+    go.className = 'btn ' + (right ? 'btn-primary' : 'btn-danger') + ' focusable';
+    if (window.SOTV_MATH) { window.SOTV_MATH($('fbAnswer')); window.SOTV_MATH($('fbTip')); }
+    // 选项已经作答，焦点只留在“继续”上
+    all('#qOptions .focusable').forEach(function (el) { el.classList.remove('focusable'); el.classList.add('answered'); });
+    var list = focusables(); for (var i = 0; i < list.length; i++) if (list[i] === go) { setFocus(i); break; }
+    if (!isTv()) go.focus();
+  }
+  function hideFeedback() { $('qFeedback').className = 'feedback'; state.feedback = null; }
+  function proceed() {
+    var result = state.feedback;
+    if (!result) return;
+    window.clearTimeout(nextTimer);
+    hideFeedback();
+    state.busy = false;
+    if (state.screen !== 'quiz') return;
+    if (result.finished) {
+      state.round = null;
+      if (result.passed) {
+        if (result.status.reason) { lock(result.status.reason); toast('奖励已保存，达到可用时段后使用'); return; }
+        show('lock'); $('lockTitle').textContent = '任务完成'; icon($('lockIcon'), 'check');
+        $('lockDesc').textContent = '已解锁 ' + Math.round(result.rewardMinutes * 10) / 10 + ' 分钟'; $('lockNote').textContent = '';
+        $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="home">开始使用</button>';
+        focusDefault();
+        window.setTimeout(function () { if (state.screen === 'lock') nativeCall('exitToLauncher'); }, 2500);
+      } else { toast('本组未通过，再试一组'); start(); }
+    } else { state.round = result.next; renderQuestion(); }
   }
   function reviewed(result) {
     state.awaiting = false; state.reviewed = true; state.review = result;
-    show('lock'); $('lockIcon').textContent = result.result.correct ? '✓' : '✎';
+    show('lock'); icon($('lockIcon'), result.result.correct ? 'check' : 'pencil');
     $('lockTitle').textContent = '批改完成 · ' + result.score + ' 分';
     $('lockDesc').textContent = result.feedback || '已保存本次批改结果';
     $('lockNote').textContent = result.result.correct ? '本题通过' : '查看反馈后继续练习';
@@ -179,7 +227,7 @@
   }
   function pending(id) {
     state.awaiting = true; state.reviewed = false;
-    show('lock'); $('lockIcon').textContent = '✓'; $('lockTitle').textContent = '答案已保存';
+    show('lock'); icon($('lockIcon'), 'check'); $('lockTitle').textContent = '答案已保存';
     $('lockDesc').textContent = '等待家长或 AI 批改，通过后继续任务';
     $('lockNote').textContent = '';
     $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="retry">查看批改结果</button>';
@@ -188,7 +236,7 @@
   function lock(reason) {
     state.lockReason = reason;
     show('lock'); state.round = null;
-    $('lockIcon').textContent = reason === 'schedule' ? '◷' : '⌛';
+    icon($('lockIcon'), reason === 'schedule' ? 'clock' : 'hourglass');
     $('lockTitle').textContent = reason === 'schedule' ? '还没到可用时间' : reason === 'rounds' ? '今天的任务已全部完成' : reason === 'quota' ? '今天的使用时间已用完' : '使用时间到了';
     var when = '';
     if (state.learning.nextAvailableAt) {
@@ -211,20 +259,49 @@
     var qr = window.qrcode(0, 'M'); qr.addData(url); qr.make(); $('pairQr').innerHTML = qr.createImgTag(8, 8);
     focusDefault();
   }
+  var THEMES = ['midnight', 'daylight', 'nord', 'amber'];
+  function applyTheme(name) {
+    if (THEMES.indexOf(name) < 0) name = 'midnight';
+    if (document.documentElement.getAttribute('data-theme') === name) return;
+    document.documentElement.setAttribute('data-theme', name);
+    try { window.localStorage.setItem('sotv_theme', name); } catch (e) {}
+  }
+  // 用内联 SVG 代替 ⌛ 等字符：很多电视的字体里没有这些符号，会显示成空白
+  var ICONS = {
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    hourglass: '<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9"/>',
+    check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.6 2.6L16 9.5"/>',
+    pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    done: '<path d="M5 12.5l4.5 4.5L19 7.5"/>'
+  };
+  function icon(el, name) {
+    el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[name] + '</svg>';
+  }
+  function isTv() { return document.documentElement.classList.contains('tv-device'); }
   function focusables() {
     var screen = document.querySelector('.screen.active');
-    return screen ? Array.prototype.slice.call(screen.querySelectorAll('.focusable')) : [];
+    var list = screen ? Array.prototype.slice.call(screen.querySelectorAll('.focusable')) : [];
+    // 右上角更新提示也要能用遥控器选中
+    if ($('updateTip').className.indexOf('show') >= 0) list = list.concat(all('#updateTip .focusable'));
+    return list.filter(function (el) { return el.offsetWidth > 0 || el.offsetHeight > 0; });
+  }
+  function reveal(el) {
+    // 旧版电视 WebView 不支持 scrollIntoView({block}) 参数，手动滚动到可见
+    var r = el.getBoundingClientRect(), h = window.innerHeight || document.documentElement.clientHeight;
+    if (r.top < 0) window.scrollBy(0, r.top - 24); else if (r.bottom > h) window.scrollBy(0, r.bottom - h + 24);
   }
   function setFocus(index) {
     var list = focusables();
-    list.forEach(function (el) { el.classList.remove('focused'); });
-    if (list[index]) { list[index].classList.add('focused'); list[index].scrollIntoView({ block: 'nearest' }); }
+    all('.focused').forEach(function (el) { el.classList.remove('focused'); });
+    if (list[index]) { list[index].classList.add('focused'); reveal(list[index]); state.focusKey = focusKey(list[index]); }
   }
-  function focusDefault() { if (document.documentElement.classList.contains('tv-device')) setFocus(0); }
+  function focusKey(el) { return el.getAttribute('data-opt') !== null ? 'opt' + el.getAttribute('data-opt') : el.getAttribute('data-action') || el.id || ''; }
+  function focusDefault() { if (isTv()) setFocus(0); }
+  // 返回 true 表示焦点移动了；false 表示已到边缘（原生层据此判断“在最上方连按 ↑”打开家长入口）
   function move(dir) {
     var list = focusables(), index = -1, best = -1, score = 1e12;
     list.forEach(function (el, i) { if (el.classList.contains('focused')) index = i; });
-    if (index < 0) { setFocus(0); return; }
+    if (index < 0) { if (!list.length) return false; setFocus(0); return true; }
     var rect = list[index].getBoundingClientRect();
     list.forEach(function (el, i) {
       if (i === index) return;
@@ -233,7 +310,8 @@
       var secondary = dir === 'left' || dir === 'right' ? Math.abs(dy) : Math.abs(dx);
       if (primary > 8 && primary + secondary * 1.8 < score) { score = primary + secondary * 1.8; best = i; }
     });
-    if (best >= 0) setFocus(best);
+    if (best >= 0) { setFocus(best); return true; }
+    return false;
   }
   function activate(el) {
     if (!el) el = document.querySelector('.screen.active .focused');
@@ -241,6 +319,7 @@
     if (el.hasAttribute('data-opt')) return choose(+el.getAttribute('data-opt'));
     var action = el.getAttribute('data-action');
     if (action === 'submit') submit();
+    if (action === 'next') proceed();
     if (action === 'review-continue' && !state.busy) {
       state.busy = true;
       request('/api/quiz/review', { reviewId: state.review.reviewId }, function (error, result) {
@@ -253,13 +332,17 @@
       });
     }
     if (action === 'voice' || action === 'handwrite') nativeCall('answerInput', [action === 'voice']);
+    if (action === 'type-answer' && !state.busy) nativeCall('answerText', [state.draft ? state.draft.text : '', state.round ? state.round.question.q : '']);
+    if (action === 'update-go') { var u = window.currentUpdate; if (u) nativeCall('installUpdate', [u.url, u.latest, u.notes || '']); }
+    if (action === 'update-close') { $('updateTip').className = 'update-tip'; try { if (window.currentUpdate) window.localStorage.setItem('sotv_update_dismissed', window.currentUpdate.latest); } catch (e) {} if (el.classList.contains('focused')) focusDefault(); }
+    if (action === 'permissions' || action === 'password') nativeCall(action === 'permissions' ? 'openPermissions' : 'changePassword');
     if (action === 'clear-drawing') { state.draft.drawing = ''; renderQuestion(); }
     if (action === 'retry') start();
     if (action === 'home') nativeCall('exitToLauncher');
     if (action === 'quiz') { if (state.screen === 'pair') nativeCall('backToQuiz'); else start(); }
   }
   function route() {
-    window.clearTimeout(nextTimer); state.busy = false;
+    window.clearTimeout(nextTimer); state.busy = false; hideFeedback();
     var hash = location.hash || '#/quiz';
     if (hash.indexOf('#/pair') === 0) return pair();
     loadState(function (error) {
@@ -280,25 +363,30 @@
         el = el.parentNode;
       }
     });
+    // 只有家长页 / 实体键盘会走到这里（学习页的遥控器按键由原生层转发给 window.TV）
     document.addEventListener('keydown', function (event) {
-      if (event.keyCode === 38 && !event.repeat) {
-        var now = Date.now(); upTaps = now - lastUpTap < 900 ? upTaps + 1 : 1; lastUpTap = now;
-        if (upTaps >= 5) { upTaps = 0; nativeCall('openParent'); event.preventDefault(); return; }
-      } else if (!event.repeat) upTaps = 0;
-      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
+      if (event.target.tagName === 'INPUT' || (event.target.tagName === 'TEXTAREA' && !event.target.readOnly)) return;
       var dir = {37:'left',38:'up',39:'right',40:'down'}[event.keyCode];
-      if (dir) move(dir); else if (event.keyCode === 13) activate(); else return;
+      if (dir) {
+        var moved = move(dir);
+        if (dir === 'up' && !moved && !event.repeat && state.screen !== 'pair') {
+          var now = Date.now(); upTaps = now - lastUpTap < 900 ? upTaps + 1 : 1; lastUpTap = now;
+          if (upTaps >= 5) { upTaps = 0; nativeCall('openParent'); }
+        } else if (!event.repeat) upTaps = 0;
+      } else if (event.keyCode === 13) { if (!event.repeat) activate(); } else return;
       event.preventDefault();
     });
-    $('updateGo').onclick = function () { var u = window.currentUpdate; if (u) nativeCall('installUpdate', [u.url, u.latest, u.notes || '']); };
-    $('updateClose').onclick = function () { $('updateTip').className = 'update-tip'; };
     var info = nativeCall('deviceInfo');
     if (info && JSON.parse(info).platform === 'android-tv') document.documentElement.classList.add('tv-device');
     else if (info) { var analytics = document.createElement('script'); analytics.src = 'assets/js/analytics.js'; analytics.async = true; document.head.appendChild(analytics); }
+    // 先用上次的主题，避免加载配置前闪一下默认配色
+    try { applyTheme(window.localStorage.getItem('sotv_theme')); } catch (e) { applyTheme('midnight'); }
+    // 启动时显示已缓存的更新信息（原生层在页面加载前拿到结果时，回调会丢失）
+    try { var cached = nativeCall('updateInfo'); if (cached) window.SOTV_UPDATE(JSON.parse(cached)); } catch (e) {}
     route();
     window.setInterval(function () {
       $('clock').textContent = new Date().toTimeString().slice(0, 5);
-      if (state.busy || state.reviewed || state.screen === 'pair') return;
+      if (state.busy || state.reviewed || state.feedback || state.screen === 'pair') return;
       var version = state.config.version;
       loadState(function (error) {
         if (error) return;
@@ -316,8 +404,11 @@
     if (!state.round) return;
     state.draft = { nonce: state.round.nonce, text: result.text || '', drawing: result.drawing || '' };
     renderQuestion();
+    // 遥控器输入完成后直接把焦点放到“提交答案”
+    if (isTv() && state.draft.text) { var list = focusables(); for (var i = 0; i < list.length; i++) if (list[i].getAttribute('data-action') === 'submit') { setFocus(i); break; } }
   };
-  window.SOTV_UPDATE = function (info) { if (!info || !info.latest) return; window.currentUpdate = info; $('updateText').textContent = '发现新版本 v' + info.latest; $('updateTip').className = 'update-tip show'; };
+  window.SOTV_UPDATE = function (info) { if (!info || !info.latest) return; window.currentUpdate = info;
+    try { if (!info.force && window.localStorage.getItem('sotv_update_dismissed') === info.latest) return; } catch (e) {} $('updateText').textContent = '发现新版本 v' + info.latest; $('updateTip').className = 'update-tip show'; };
   window.TV = { move: move, select: function () { activate(); }, back: function () { if (!state.learning.reason && state.learning.remainingSeconds > 0) nativeCall('exitToLauncher'); else toast('现在暂不可用'); }, state: state };
   window.SOTV_RESUME = function () { if (document.readyState === 'complete' && !state.busy && state.screen !== 'pair') route(); };
   window.addEventListener('hashchange', route);

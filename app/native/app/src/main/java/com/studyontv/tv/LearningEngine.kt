@@ -15,6 +15,7 @@ class LearningEngine(private val store: LocalStore) {
     private fun day() {
         val current = store.startOfToday()
         if (number("usage_day") != current) {
+            if (pendingUsageMs > 0) { store.logEvent("usage", JSONObject().put("milliseconds", pendingUsageMs)); pendingUsageMs = 0 }
             put("usage_day", current)
             put("credit_ms", 0)
             put("used_ms", 0)
@@ -71,20 +72,31 @@ class LearningEngine(private val store: LocalStore) {
             .put("roundsDoneToday", rounds).put("reason", reason).put("awaitingReview", active()?.has("pendingReview") == true)
     }
 
+    private var pendingUsageMs = 0L
+
+    /** 每秒调用一次。余额每次都持久化，但“使用记录”事件攒到 30 秒再写一条，避免一天写入上万行 */
     @Synchronized
     fun consume(milliseconds: Long) {
         day()
         val amount = min(milliseconds.coerceIn(0, 5000), min(number("credit_ms"),
             (store.config().getLong("dailyMinutes") * 60000 - number("used_ms")).coerceAtLeast(0)))
-        if (amount <= 0) return
+        if (amount <= 0) { flushUsage(); return }
         val db = store.writableDatabase
         db.beginTransaction()
         try {
             put("credit_ms", number("credit_ms") - amount)
             put("used_ms", number("used_ms") + amount)
-            store.logEvent("usage", JSONObject().put("milliseconds", amount))
+            pendingUsageMs += amount
+            if (pendingUsageMs >= 30000 || number("credit_ms") <= 0) flushUsage()
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
+    }
+
+    @Synchronized
+    fun flushUsage() {
+        if (pendingUsageMs <= 0) return
+        store.logEvent("usage", JSONObject().put("milliseconds", pendingUsageMs))
+        pendingUsageMs = 0
     }
 
     private fun active(): JSONObject? = store.get("active_round").takeIf { it.isNotEmpty() }?.let { JSONObject(it) }
