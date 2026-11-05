@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<meta name="theme-color" content="#08080A">
+<meta name="theme-color" content="#141414">
 <title>题了个题 · 先学再看</title>
 <link rel="stylesheet" href="assets/css/tv.css">
 </head>
@@ -29,7 +29,19 @@
     <div class="lock-wrap"><div class="lock-badge" id="lockIcon"></div><h1 class="lock-title" id="lockTitle"></h1><p class="lock-desc" id="lockDesc"></p><div class="lock-actions" id="lockActions"></div><p class="lock-note" id="lockNote"></p></div>
   </section>
   <section class="screen" id="screen-pair">
-    <div class="lock-wrap"><div class="qr-box" id="pairQr"></div><h1 class="lock-title">扫码<em>管理这台设备</em></h1><p class="lock-desc">家长手机连接同一 WiFi，扫码或在浏览器打开<br><b id="pairUrl"></b><br>打开后输入管理密码</p><div class="lock-actions"><button class="btn btn-primary focusable" data-action="quiz">返回答题</button><button class="btn btn-ghost focusable" data-action="permissions">权限设置</button><button class="btn btn-ghost focusable" data-action="password">修改密码</button></div></div>
+    <div class="pair-wrap">
+      <div class="pair-copy">
+        <p class="pair-eyebrow">家长管理</p>
+        <h1 class="pair-title">用手机管理这台设备</h1>
+        <ol class="pair-steps">
+          <li><b>1</b>手机连接与这台设备相同的 WiFi</li>
+          <li><b>2</b>用相机扫描二维码，或在浏览器打开<br><span class="pair-url" id="pairUrl"></span></li>
+          <li><b>3</b>输入管理密码，即可设置规则、题库与批改</li>
+        </ol>
+        <div class="lock-actions"><button class="btn btn-primary focusable" data-action="quiz">返回答题</button><button class="btn btn-ghost focusable" data-action="permissions">权限设置</button><button class="btn btn-ghost focusable" data-action="password">修改密码</button></div>
+      </div>
+      <div class="qr-box" id="pairQr"></div>
+    </div>
   </section>
 </main>
 <script src="assets/js/qrcode.min.js"></script>

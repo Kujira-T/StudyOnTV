@@ -137,10 +137,12 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             .put("difficultyRewardEnabled", false)
             .put("difficultyRewards", JSONObject().put("1", 1).put("2", 2).put("3", 3).put("4", 4).put("5", 5))
             .put("praisePhrases", JSONArray(DEFAULT_PRAISE)).put("encouragePhrases", JSONArray(DEFAULT_ENCOURAGE))
-            .put("autoNextSeconds", 0).put("theme", "midnight")
+            .put("autoNextSeconds", 0).put("theme", "dark")
             .put("version", 1)
         val saved = try { JSONObject(get("config", "{}")) } catch (e: Exception) { JSONObject() }
         saved.keys().forEach { defaults.put(it, saved.get(it)) }
+        // 旧版的四种配色主题合并为深色 / 浅色
+        defaults.put("theme", when (defaults.optString("theme")) { "light", "daylight" -> "light"; "system" -> "system"; else -> "dark" })
         val timePattern = Regex("([01][0-9]|2[0-3]):[0-5][0-9]")
         val validStart = timePattern.matches(defaults.optString("windowStart"))
         val validEnd = timePattern.matches(defaults.optString("windowEnd"))
@@ -193,7 +195,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             next.put(key, if (clean.length() == 0) JSONArray(if (key == "praisePhrases") DEFAULT_PRAISE else DEFAULT_ENCOURAGE) else clean)
         }
         if (input.has("theme")) {
-            require(input.getString("theme") in listOf("midnight", "daylight", "nord", "amber")) { "未知主题" }
+            require(input.getString("theme") in listOf("dark", "light", "system")) { "外观需要为深色、浅色或跟随系统" }
             next.put("theme", input.getString("theme"))
         }
         if (input.has("autoNextSeconds")) {

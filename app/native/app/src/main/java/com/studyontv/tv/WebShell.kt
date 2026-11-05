@@ -26,7 +26,7 @@ class WebShell(private val context: Context) {
     fun create(url: String): WebView {
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         val web = WebView(context)
-        web.setBackgroundColor(if (DeviceBridge.isTv(context)) 0xFF121212.toInt() else 0xFFF8F9F6.toInt())
+        web.setBackgroundColor(if (DeviceBridge.isTv(context)) TvUi.background(context) else 0xFFF8F9F6.toInt())
         web.isFocusable = true
         web.isFocusableInTouchMode = true
 

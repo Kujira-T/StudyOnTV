@@ -44,24 +44,25 @@ class UpdateActivity : Activity() {
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
-        root.setBackgroundColor(0xFF121212.toInt())
+        val palette = TvUi.palette(this)
+        root.setBackgroundColor(palette.bg)
         root.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         root.setPadding(dp(if (DeviceBridge.isTv(this)) 120 else 24), dp(36), dp(if (DeviceBridge.isTv(this)) 120 else 24), dp(24))
 
-        root.addView(label(getString(R.string.app_name) + if (DeviceBridge.isTv(this)) " · 电视版" else " · 手机 / 平板版", 16f, TvUi.ACCENT, 4))
-        root.addView(label("发现新版本 v$latest", 30f, Color.WHITE, 8))
-        root.addView(label("当前 v$current" + if (force) " · 必须更新后才能继续使用" else "", 16f, 0xFFB3B3B3.toInt(), 14))
+        root.addView(label(getString(R.string.app_name) + if (DeviceBridge.isTv(this)) " · 电视版" else " · 手机 / 平板版", 16f, palette.text2, 4))
+        root.addView(label("发现新版本 v$latest", 32f, palette.text, 8))
+        root.addView(label("当前 v$current" + if (force) " · 必须更新后才能继续使用" else "", 16f, palette.text2, 14))
 
         if (notes.isNotEmpty()) {
-            root.addView(label("更新内容", 13f, 0xFF8E8E96.toInt(), 6, Gravity.START))
+            root.addView(label("更新内容", 13f, palette.text3, 6, Gravity.START))
 
             val note = TextView(this)
             note.text = notes
-            note.setTextColor(0xFFE0E0E0.toInt())
+            note.setTextColor(palette.text)
             note.textSize = 15f
             note.setLineSpacing(dp(8).toFloat(), 1.05f)
             note.setPadding(dp(28), dp(20), dp(28), dp(20))
-            note.background = solid(0xFF1F1F1F.toInt(), 16)
+            note.background = solid(palette.surface, 16)
 
             val scroll = ScrollView(this)
             scroll.addView(note)
@@ -80,10 +81,10 @@ class UpdateActivity : Activity() {
         if (!force) buttons.addView(TvUi.button(this, "以后再说") { finish() }, LinearLayout.LayoutParams(dp(if (DeviceBridge.isTv(this)) 180 else 130), dp(58)).apply { leftMargin = dp(16) })
         root.addView(buttons)
 
-        status = label("下载后覆盖安装即可，题库和设置不会丢", 12f, 0xFF8A8A8A.toInt(), 10)
+        status = label("下载后覆盖安装即可，题库和设置不会丢", 12f, palette.text3, 10)
         root.addView(status)
 
-        setContentView(ScrollView(this).apply { isFillViewport = true; setBackgroundColor(0xFF121212.toInt()); addView(root) })
+        setContentView(ScrollView(this).apply { isFillViewport = true; setBackgroundColor(palette.bg); addView(root) })
         if (url.isEmpty()) go.isEnabled = false
         go.requestFocus()
         if (intent.getBooleanExtra("auto", false) && url.isNotEmpty()) {

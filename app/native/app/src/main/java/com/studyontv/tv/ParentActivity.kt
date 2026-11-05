@@ -40,7 +40,7 @@ class ParentActivity : Activity() {
         fun text(value: String, size: Float, color: Int = TvUi.foreground(this)) = TextView(this).apply {
             text = value; textSize = size; setTextColor(color); setPadding(0, dp(8), 0, dp(8))
         }
-        column.addView(text(if (changing) "修改管理密码" else if (setup) "设置管理密码" else "家长验证", if (tv) 26f else 28f))
+        column.addView(text(if (changing) "修改管理密码" else if (setup) "设置管理密码" else "家长验证", if (tv) 32f else 28f).apply { paint.isFakeBoldText = true })
         column.addView(text(if (setup) "请设置 6–64 位密码。再次连接、打开管理面板和 API 都需要验证。" else "请输入管理密码", 15f, TvUi.muted(this)))
         val secret = EditText(this).apply {
             hint = if (changing) "新密码" else "管理密码"
@@ -56,7 +56,7 @@ class ParentActivity : Activity() {
             TvUi.field(this)
         }
         if (setup) column.addView(confirm, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
-        val error = text("", 14f, 0xFFFFB020.toInt())
+        val error = text("", 14f, TvUi.palette(this).warn)
         column.addView(error)
         lateinit var submit: Button
         fun go() {

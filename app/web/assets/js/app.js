@@ -259,20 +259,21 @@
     var qr = window.qrcode(0, 'M'); qr.addData(url); qr.make(); $('pairQr').innerHTML = qr.createImgTag(8, 8);
     focusDefault();
   }
-  var THEMES = ['midnight', 'daylight', 'nord', 'amber'];
+  // 深色 / 浅色 / 跟随系统（电视系统的深色模式设置）
   function applyTheme(name) {
-    if (THEMES.indexOf(name) < 0) name = 'midnight';
-    if (document.documentElement.getAttribute('data-theme') === name) return;
-    document.documentElement.setAttribute('data-theme', name);
-    try { window.localStorage.setItem('sotv_theme', name); } catch (e) {}
+    if (name === 'light' || name === 'daylight') name = 'light';
+    else if (name === 'system') { var info = {}; try { info = JSON.parse(nativeCall('deviceInfo') || '{}'); } catch (e) {} name = info.night === false ? 'light' : 'dark'; }
+    else name = 'dark';
+    if (document.documentElement.getAttribute('data-mode') === name) return;
+    document.documentElement.setAttribute('data-mode', name);
+    try { window.localStorage.setItem('sotv_mode', name); } catch (e) {}
   }
   // 用内联 SVG 代替 ⌛ 等字符：很多电视的字体里没有这些符号，会显示成空白
   var ICONS = {
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     hourglass: '<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9"/>',
-    check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.6 2.6L16 9.5"/>',
-    pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
-    done: '<path d="M5 12.5l4.5 4.5L19 7.5"/>'
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'
   };
   function icon(el, name) {
     el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[name] + '</svg>';
@@ -380,7 +381,7 @@
     if (info && JSON.parse(info).platform === 'android-tv') document.documentElement.classList.add('tv-device');
     else if (info) { var analytics = document.createElement('script'); analytics.src = 'assets/js/analytics.js'; analytics.async = true; document.head.appendChild(analytics); }
     // 先用上次的主题，避免加载配置前闪一下默认配色
-    try { applyTheme(window.localStorage.getItem('sotv_theme')); } catch (e) { applyTheme('midnight'); }
+    try { applyTheme(window.localStorage.getItem('sotv_mode')); } catch (e) { applyTheme('dark'); }
     // 启动时显示已缓存的更新信息（原生层在页面加载前拿到结果时，回调会丢失）
     try { var cached = nativeCall('updateInfo'); if (cached) window.SOTV_UPDATE(JSON.parse(cached)); } catch (e) {}
     route();

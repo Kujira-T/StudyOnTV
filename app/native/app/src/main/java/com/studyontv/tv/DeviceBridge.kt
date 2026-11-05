@@ -38,7 +38,7 @@ open class DeviceBridge(protected val activity: Activity, private val connection
 
     @JavascriptInterface
     fun deviceInfo(): String = JSONObject().put("platform", if (isTv(activity)) "android-tv" else "android")
-        .put("model", Build.MODEL).put("version", BuildConfig.VERSION_NAME).toString()
+        .put("model", Build.MODEL).put("version", BuildConfig.VERSION_NAME).put("night", TvUi.systemNight(activity)).toString()
 
     @JavascriptInterface
     fun lanInfo(): String = if (connectionAllowed) DeviceRuntime.connection(activity).toString() else ""

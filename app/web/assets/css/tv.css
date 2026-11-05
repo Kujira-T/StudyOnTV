@@ -501,112 +501,190 @@ html:not(.tv-device) .fb-tip { font-size: 14px; color: #6b7768; max-height: none
 html:not(.tv-device) .feedback .btn { min-width: 112px; font-size: 16px; margin-left: 16px; padding: 14px 22px; }
 @media (max-width:600px) { html:not(.tv-device) .feedback { -webkit-flex-wrap: wrap; flex-wrap: wrap; } html:not(.tv-device) .feedback .btn { width: 100%; margin: 14px 0 0; } }
 
-/* ---- 电视焦点样式：清晰的浅色描边 + 轻微放大，远距离也一眼看出当前选中项 ---- */
-html.tv-device .option.focused {
-  background: #232026; border-color: #FFF4E2;
-  -webkit-box-shadow: 0 0 0 .35rem rgba(255,244,226,.9), 0 2.4rem 5rem rgba(0,0,0,.6);
-  box-shadow: 0 0 0 .35rem rgba(255,244,226,.9), 0 2.4rem 5rem rgba(0,0,0,.6);
-  -webkit-transform: scale(1.03); transform: scale(1.03);
-}
-html.tv-device .btn.focused {
-  -webkit-box-shadow: 0 0 0 .35rem #FFF4E2, 0 2rem 4.4rem rgba(0,0,0,.6);
-  box-shadow: 0 0 0 .35rem #FFF4E2, 0 2rem 4.4rem rgba(0,0,0,.6);
-}
-html.tv-device .option.selected { border-color: #FFB020; background: #332611; }
-html.tv-device .option.selected.focused { border-color: #FFF4E2; }
-html.tv-device .hint .kbd { margin-right: .6rem; }
-html.tv-device .hint .hint-text { margin-right: 2.4rem; }
-body.on-pair .pill { display: none; }
 
 /* =====================================================================
- * 主题（电视学习页 / 悬浮学习页）
- * 用 CSS 变量统一配色；不支持变量的旧 WebView 会自动退回上面的原始样式。
- *  midnight 默认：中性近黑 + 绿色强调 + 白色焦点框（参考流媒体电视界面）
- *  daylight 浅色：浅灰底 + 白色卡片 + 深色文字（参考主机简洁界面）
- *  nord     北欧冷色：Nord 配色（nordtheme.com）
- *  amber    琥珀：原品牌橙色的克制版本
+ * 电视界面（参考 Apple TV / Netflix 的遥控器交互）
+ * - 未选中：低调的半透明灰；选中：白色卡片“浮起”+ 放大 + 阴影（深色）/ 深色反白（浅色）
+ * - 大字号、宽安全边距、只用系统语义色（绿 = 对，红 = 错，蓝 = 已选）
+ * - 不使用 CSS 变量，旧电视 WebView 也能得到同样的效果
+ * 深色为默认；html[data-mode=light] 为浅色
  * ===================================================================== */
-html.tv-device, html.tv-device[data-theme="midnight"] {
-  --bg: #121212; --bg-top: #1E1E1E; --surface: #1F1F1F; --surface-2: #2A2A2A; --line: #2E2E2E;
-  --text: #FFFFFF; --text-2: #B3B3B3; --text-3: #7A7A7A;
-  --accent: #1ED760; --accent-ink: #04170B; --focus: #FFFFFF; --focus-bg: #2C2C2C;
-  --ok: #1ED760; --ok-bg: #10261A; --ok-ink: #04170B; --bad: #F15E6C; --bad-bg: #2B1416; --bad-ink: #2A0508;
-  --shadow: rgba(0,0,0,.55);
-}
-html.tv-device[data-theme="daylight"] {
-  --bg: #F3F3F1; --bg-top: #FAFAF8; --surface: #FFFFFF; --surface-2: #ECECEA; --line: #E2E2DF;
-  --text: #1C1C1E; --text-2: #55555A; --text-3: #8E8E93;
-  --accent: #2563EB; --accent-ink: #FFFFFF; --focus: #1C1C1E; --focus-bg: #FFFFFF;
-  --ok: #16A34A; --ok-bg: #E9F7EE; --ok-ink: #FFFFFF; --bad: #DC2626; --bad-bg: #FDECEC; --bad-ink: #FFFFFF;
-  --shadow: rgba(30,30,40,.16);
-}
-html.tv-device[data-theme="nord"] {
-  --bg: #2E3440; --bg-top: #353C4A; --surface: #3B4252; --surface-2: #434C5E; --line: #4C566A;
-  --text: #ECEFF4; --text-2: #D8DEE9; --text-3: #94A0B8;
-  --accent: #88C0D0; --accent-ink: #2E3440; --focus: #ECEFF4; --focus-bg: #46506A;
-  --ok: #A3BE8C; --ok-bg: #354038; --ok-ink: #2E3440; --bad: #BF616A; --bad-bg: #42343C; --bad-ink: #2E3440;
-  --shadow: rgba(0,0,0,.35);
-}
-html.tv-device[data-theme="amber"] {
-  --bg: #0F0E0C; --bg-top: #1A1814; --surface: #1C1A17; --surface-2: #27241F; --line: #34302A;
-  --text: #FAF7F2; --text-2: #B8B0A3; --text-3: #7D766B;
-  --accent: #F5A524; --accent-ink: #241703; --focus: #FFF4E2; --focus-bg: #2A2620;
-  --ok: #4ADE80; --ok-bg: #12261A; --ok-ink: #05210F; --bad: #F87171; --bad-bg: #2B1414; --bad-ink: #2A0505;
-  --shadow: rgba(0,0,0,.6);
-}
-html.tv-device body { background: var(--bg); color: var(--text); }
-html.tv-device .bg { background: var(--bg); background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 55%); }
+html.tv-device body { background: #141414; color: #E8E8E8; font-family: "SF Pro Display", "PingFang SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif; }
+html.tv-device .bg { background: #141414; background: -webkit-radial-gradient(50% -20%, ellipse, #242424 0%, #141414 60%); background: radial-gradient(ellipse at 50% -20%, #242424 0%, #141414 60%); }
 html.tv-device .glow, html.tv-device .grain { display: none; }
-html.tv-device .logo { background: var(--accent); }
-html.tv-device .logo i { border-left-color: var(--accent-ink); }
-html.tv-device .brand-text { color: var(--text); }
-html.tv-device .pill { color: var(--text-2); background: var(--surface); border-color: var(--line); }
-html.tv-device .clock, html.tv-device .counter, html.tv-device .crumb-main { color: var(--text-2); }
-html.tv-device .counter b, html.tv-device .question, html.tv-device .lock-title { color: var(--text); }
-html.tv-device .lock-title em { background: none; -webkit-text-fill-color: currentColor; color: var(--accent); }
-html.tv-device .lock-desc { color: var(--text-2); }
-html.tv-device .lock-desc b { color: var(--text); }
-html.tv-device .lock-note, html.tv-device .hint { color: var(--text-3); }
-html.tv-device .lock-badge { color: var(--accent); }
-html.tv-device .lock-badge:before { background: var(--surface); border-radius: 50%; left: -1rem; top: -1rem; right: -1rem; bottom: -1rem; }
-html.tv-device .kbd { color: var(--text-2); background: var(--surface); border-color: var(--line); }
-html.tv-device .pool-status { color: var(--accent); }
 
-html.tv-device .option { background: var(--surface); border-color: var(--surface); color: var(--text); -webkit-box-shadow: none; box-shadow: none; }
-html.tv-device .option .letter { background: var(--surface-2); color: var(--text-2); }
-html.tv-device .option.focused { background: var(--focus-bg); border-color: var(--focus);
-  -webkit-box-shadow: 0 0 0 .25rem var(--focus), 0 2rem 4.4rem var(--shadow); box-shadow: 0 0 0 .25rem var(--focus), 0 2rem 4.4rem var(--shadow); }
-html.tv-device .option.focused .letter, html.tv-device .option.selected .letter { background: var(--accent); color: var(--accent-ink); }
-html.tv-device .option.selected { border-color: var(--accent); background: var(--surface); }
-html.tv-device .option.right { background: var(--ok-bg); border-color: var(--ok); }
-html.tv-device .option.right .letter { background: var(--ok); color: var(--ok-ink); }
-html.tv-device .option.wrong { background: var(--bad-bg); border-color: var(--bad); }
-html.tv-device .option.wrong .letter { background: var(--bad); color: var(--bad-ink); }
+/* 顶栏 */
+html.tv-device .topbar { height: 10rem; padding: 0 9rem; }
+html.tv-device .logo { width: 3.6rem; height: 3.6rem; border-radius: 1rem; background: #E8E8E8; }
+html.tv-device .logo i { border-left-color: #141414; }
+html.tv-device .brand-text { font-size: 2.2rem; font-weight: 600; color: #E8E8E8; letter-spacing: 0; }
+html.tv-device .pill { font-size: 1.8rem; color: #A3A3A3; background: rgba(255,255,255,.08); border: 0; padding: 1rem 2.2rem; }
+html.tv-device .clock { font-size: 2.2rem; font-weight: 500; color: #A3A3A3; }
+html.tv-device #stage { height: calc(100vh - 10rem); padding: 1rem 9rem 7rem; }
 
-html.tv-device .btn { background: var(--surface); color: var(--text); border-color: var(--line); -webkit-box-shadow: none; box-shadow: none; }
-html.tv-device .btn-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-html.tv-device .btn-danger { background: var(--bad); color: var(--bad-ink); border-color: var(--bad); }
-html.tv-device .btn-ghost.focused { background: var(--focus-bg); }
-html.tv-device .btn.focused { -webkit-box-shadow: 0 0 0 .3rem var(--bg), 0 0 0 .6rem var(--focus); box-shadow: 0 0 0 .3rem var(--bg), 0 0 0 .6rem var(--focus); }
+/* 题目 */
+html.tv-device .crumb-main { font-size: 1.9rem; font-weight: 500; color: #A3A3A3; letter-spacing: .02em; }
+html.tv-device .counter { font-size: 1.9rem; color: #6E6E6E; }
+html.tv-device .counter b { font-size: 2.8rem; font-weight: 700; color: #E8E8E8; }
+html.tv-device .question { font-size: 6rem; font-weight: 700; line-height: 1.25; letter-spacing: -.01em; color: #E8E8E8; margin-bottom: 5rem; }
+html.tv-device .question.long { font-size: 4.6rem; }
+html.tv-device .question.longer { font-size: 3.6rem; }
 
-html.tv-device .written-answer { background: var(--surface); color: var(--text); border-color: var(--line); }
-html.tv-device .written-answer.focused { border-color: var(--focus); -webkit-box-shadow: 0 0 0 .25rem var(--focus); box-shadow: 0 0 0 .25rem var(--focus); }
-html.tv-device .toast { background: var(--surface-2); border-color: var(--line); color: var(--text); }
-html.tv-device .update-tip { background: var(--surface); border-color: var(--line); -webkit-box-shadow: 0 1.6rem 4rem var(--shadow); box-shadow: 0 1.6rem 4rem var(--shadow); }
-html.tv-device .update-text { color: var(--text); }
-html.tv-device .update-btn { background: var(--accent); color: var(--accent-ink); }
-html.tv-device .update-close { background: var(--surface-2); color: var(--text-2); }
-html.tv-device .update-btn.focused, html.tv-device .update-close.focused { -webkit-box-shadow: 0 0 0 .3rem var(--focus); box-shadow: 0 0 0 .3rem var(--focus); }
+html.tv-device .option { width: 48.5%; margin: 0 3% 2.4rem 0; padding: 3rem 3.4rem; border-radius: 2.2rem; border: 0; background: rgba(255,255,255,.09); background: #222222; color: #E8E8E8; font-size: 3.2rem; font-weight: 600;
+  -webkit-box-shadow: none; box-shadow: none; -webkit-transform: none; transform: none;
+  -webkit-transition: -webkit-transform .22s cubic-bezier(.2,.8,.2,1), background .18s ease, color .18s ease, box-shadow .22s ease;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), background .18s ease, color .18s ease, box-shadow .22s ease; }
+html.tv-device .option:nth-child(2n) { margin-right: 0; }
+html.tv-device .option .letter { width: 5.4rem; height: 5.4rem; line-height: 5.4rem; border-radius: 50%; margin-right: 2.6rem; font-size: 2.2rem; font-weight: 700; color: #A3A3A3; background: rgba(255,255,255,.1); }
+html.tv-device .option.focused { background: #E8E8E8; color: #141414; -webkit-transform: scale(1.05); transform: scale(1.05);
+  -webkit-box-shadow: 0 2.6rem 6rem rgba(0,0,0,.55); box-shadow: 0 2.6rem 6rem rgba(0,0,0,.55); }
+html.tv-device .option.focused .letter { background: #141414; color: #E8E8E8; }
+html.tv-device .option.selected { -webkit-box-shadow: inset 0 0 0 .4rem #AEB4BB; box-shadow: inset 0 0 0 .4rem #AEB4BB; }
+html.tv-device .option.selected .letter { background: #AEB4BB; color: #FFFFFF; }
+html.tv-device .option.selected.focused { -webkit-box-shadow: inset 0 0 0 .4rem #AEB4BB, 0 2.6rem 6rem rgba(0,0,0,.55); box-shadow: inset 0 0 0 .4rem #AEB4BB, 0 2.6rem 6rem rgba(0,0,0,.55); }
+html.tv-device .option.right { background: #1E2820; color: #E8E8E8; -webkit-box-shadow: inset 0 0 0 .4rem #86B98C; box-shadow: inset 0 0 0 .4rem #86B98C; -webkit-transform: none; transform: none; }
+html.tv-device .option.right .letter { background: #86B98C; color: #16251A; }
+html.tv-device .option.wrong { background: #2E201D; color: #E8E8E8; -webkit-box-shadow: inset 0 0 0 .4rem #D98276; box-shadow: inset 0 0 0 .4rem #D98276; -webkit-transform: none; transform: none; }
+html.tv-device .option.wrong .letter { background: #D98276; color: #2A1714; }
+html.tv-device .option.answered { opacity: .4; }
+html.tv-device .option.answered.right, html.tv-device .option.answered.wrong { opacity: 1; }
+html.tv-device .pool-status { color: #A3A3A3; font-size: 2rem; margin-top: 1.4rem; }
 
-html.tv-device .feedback { background: var(--ok-bg); border-top-color: var(--ok); }
-html.tv-device .feedback.is-wrong { background: var(--bad-bg); border-top-color: var(--bad); }
-html.tv-device .fb-icon { background: var(--ok); color: var(--ok-ink); }
-html.tv-device .is-wrong .fb-icon { background: var(--bad); color: var(--bad-ink); }
-html.tv-device .fb-title { color: var(--ok); }
-html.tv-device .is-wrong .fb-title { color: var(--bad); }
-html.tv-device .fb-answer { color: var(--text); }
-html.tv-device .fb-tip { color: var(--text-2); }
-html.tv-device .feedback.is-right .btn-primary { background: var(--ok); color: var(--ok-ink); border-color: var(--ok); }
-html.tv-device .feedback .btn.focused { -webkit-box-shadow: 0 0 0 .3rem var(--bg), 0 0 0 .6rem var(--focus); box-shadow: 0 0 0 .3rem var(--bg), 0 0 0 .6rem var(--focus); }
-.lock-badge svg { width: 7rem; height: 7rem; margin-top: 2.5rem; }
+/* 按钮：未选中是灰色胶囊，选中变白并放大 */
+html.tv-device .btn { padding: 2rem 4.4rem; margin-right: 2.4rem; border: 0; border-radius: 1.6rem; font-size: 2.4rem; font-weight: 600; color: #E8E8E8; background: #2E2E2E;
+  -webkit-box-shadow: none; box-shadow: none;
+  -webkit-transition: -webkit-transform .2s cubic-bezier(.2,.8,.2,1), background .18s ease, color .18s ease; transition: transform .2s cubic-bezier(.2,.8,.2,1), background .18s ease, color .18s ease; }
+html.tv-device .btn-primary { background: #333333; }
+html.tv-device .btn.focused, html.tv-device .btn-ghost.focused { background: #E8E8E8; color: #141414; -webkit-transform: scale(1.06); transform: scale(1.06);
+  -webkit-box-shadow: 0 1.8rem 4.4rem rgba(0,0,0,.55); box-shadow: 0 1.8rem 4.4rem rgba(0,0,0,.55); }
+
+/* 底部按键提示 */
+html.tv-device .quiz-foot { bottom: -2rem; }
+html.tv-device .hint { font-size: 1.7rem; color: #6E6E6E; }
+html.tv-device .kbd { min-width: 0; padding: .5rem 1.1rem; margin-right: .8rem; font-size: 1.5rem; color: #A3A3A3; background: rgba(255,255,255,.08); border: 0; border-radius: .8rem; }
+html.tv-device .hint .hint-text { margin-right: 2.8rem; }
+
+/* 锁定 / 完成 / 等待批改 */
+html.tv-device .lock-wrap { max-width: 120rem; }
+html.tv-device .lock-badge { width: 14rem; height: 14rem; line-height: 14rem; margin-bottom: 4rem; color: #E8E8E8; border-radius: 50%; background: rgba(255,255,255,.08); background: #222222; }
+html.tv-device .lock-badge:before { display: none; }
+html.tv-device .lock-badge svg { width: 7rem; height: 7rem; margin-top: 0; vertical-align: middle; }
+html.tv-device .lock-title { font-size: 6.4rem; font-weight: 700; letter-spacing: -.015em; color: #E8E8E8; margin-bottom: 2rem; }
+html.tv-device .lock-title em { background: none; -webkit-text-fill-color: currentColor; color: #E8E8E8; }
+html.tv-device .lock-desc { font-size: 2.6rem; color: #A3A3A3; margin-bottom: 5rem; }
+html.tv-device .lock-desc b { color: #E8E8E8; font-weight: 600; }
+html.tv-device .lock-note { font-size: 1.9rem; color: #6E6E6E; margin-top: 4.6rem; }
+
+/* 连接家长手机（参考 Netflix“用手机登录”页：左边步骤，右边二维码） */
+.pair-wrap { width: 100%; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: space-between; justify-content: space-between; }
+.pair-copy { -webkit-flex: 1; flex: 1; min-width: 0; padding-right: 8rem; }
+.pair-eyebrow { font-size: 2rem; font-weight: 600; color: #A3A3A3; letter-spacing: .04em; margin: 0 0 1.6rem; }
+.pair-title { font-size: 6rem; font-weight: 700; line-height: 1.2; margin: 0 0 4.4rem; color: #E8E8E8; }
+.pair-steps { list-style: none; margin: 0 0 5rem; padding: 0; }
+.pair-steps li { position: relative; padding-left: 7rem; margin-bottom: 3rem; font-size: 2.6rem; line-height: 1.5; color: #CFCFCF; min-height: 4.6rem; }
+.pair-steps li b { position: absolute; left: 0; top: -.2rem; width: 4.6rem; height: 4.6rem; line-height: 4.6rem; border-radius: 50%; text-align: center; font-size: 2.2rem; background: rgba(255,255,255,.1); background: #2E2E2E; color: #E8E8E8; }
+.pair-url { display: inline-block; margin-top: 1rem; padding: .8rem 1.6rem; border-radius: 1rem; background: #222222; color: #E8E8E8; font-weight: 600; font-size: 2.4rem; letter-spacing: .01em; }
+.pair-wrap .lock-actions { -webkit-justify-content: flex-start; justify-content: flex-start; }
+html.tv-device .qr-box { width: 46rem; height: 46rem; padding: 3rem; border-radius: 3.2rem; background: #FFFFFF; margin: 0; -webkit-flex-shrink: 0; flex-shrink: 0; -webkit-box-shadow: 0 3rem 8rem rgba(0,0,0,.5); box-shadow: 0 3rem 8rem rgba(0,0,0,.5); }
+html.tv-device .qr-box img, html.tv-device .qr-box canvas { width: 40rem; height: 40rem; }
+html:not(.tv-device) .pair-wrap { display: block; text-align: center; }
+html:not(.tv-device) .pair-copy { padding: 0; }
+html:not(.tv-device) .pair-title { font-size: 26px; color: #26312b; margin-bottom: 20px; }
+html:not(.tv-device) .pair-eyebrow { font-size: 13px; color: #879385; }
+html:not(.tv-device) .pair-steps { text-align: left; display: inline-block; margin-bottom: 24px; }
+html:not(.tv-device) .pair-steps li { font-size: 15px; padding-left: 40px; margin-bottom: 14px; min-height: 28px; color: #4b5650; }
+html:not(.tv-device) .pair-steps li b { width: 28px; height: 28px; line-height: 28px; font-size: 13px; background: #eef1eb; color: #4b5650; }
+html:not(.tv-device) .pair-url { font-size: 14px; background: #eef1eb; color: #26312b; padding: 4px 10px; }
+html:not(.tv-device) .pair-wrap .qr-box { margin: 0 auto 24px; }
+html:not(.tv-device) .pair-wrap .lock-actions { -webkit-justify-content: center; justify-content: center; }
+body.on-pair .pill { display: none; }
+
+/* 答题反馈：底部半透明面板 */
+html.tv-device .feedback { padding: 3.4rem 9rem 4rem; border-top: 0; background: #1C1C1C; -webkit-box-shadow: 0 -2rem 6rem rgba(0,0,0,.5); box-shadow: 0 -2rem 6rem rgba(0,0,0,.5); }
+html.tv-device .feedback.is-wrong { background: #1C1C1C; }
+html.tv-device .fb-icon { width: 7.6rem; height: 7.6rem; line-height: 7.6rem; background: #86B98C; color: #16251A; }
+html.tv-device .is-wrong .fb-icon { background: #D98276; color: #2A1714; }
+html.tv-device .fb-title { font-size: 3.8rem; font-weight: 700; color: #86B98C; }
+html.tv-device .is-wrong .fb-title { color: #D98276; }
+html.tv-device .fb-answer { font-size: 2.8rem; font-weight: 600; color: #E8E8E8; }
+html.tv-device .fb-tip { font-size: 2.1rem; color: #A3A3A3; }
+html.tv-device .feedback .btn, html.tv-device .feedback.is-right .btn-primary, html.tv-device .btn-danger { background: #333333; color: #E8E8E8; min-width: 24rem; }
+html.tv-device .feedback .btn.focused { background: #E8E8E8; color: #141414; }
+
+/* 输入框、提示、更新卡片 */
+html.tv-device .written-answer { background: #222222; color: #E8E8E8; border: 0; border-radius: 2rem; padding: 3rem; font-size: 3rem; -webkit-box-shadow: none; box-shadow: none; }
+html.tv-device .written-answer.focused { background: #E8E8E8; color: #141414; -webkit-box-shadow: 0 2.4rem 5rem rgba(0,0,0,.5); box-shadow: 0 2.4rem 5rem rgba(0,0,0,.5); }
+html.tv-device .written-answer::-webkit-input-placeholder { color: #8E8E93; }
+html.tv-device .toast { background: #2E2E2E; border: 0; color: #E8E8E8; font-size: 2.2rem; border-radius: 1.6rem; padding: 1.8rem 3.4rem; }
+html.tv-device .update-tip { right: 9rem; top: 11rem; background: #222222; border: 0; border-radius: 2rem; padding: 1.6rem 1.6rem 1.6rem 2.6rem; }
+html.tv-device .update-text { color: #E8E8E8; font-size: 2rem; }
+html.tv-device .update-btn { background: #333333; color: #E8E8E8; padding: 1.1rem 2.4rem; font-size: 1.9rem; }
+html.tv-device .update-close { background: #2E2E2E; color: #A3A3A3; }
+html.tv-device .update-btn.focused, html.tv-device .update-close.focused { background: #E8E8E8; color: #141414; -webkit-box-shadow: none; box-shadow: none; -webkit-transform: scale(1.08); transform: scale(1.08); }
+
+/* ---------- 浅色模式 ---------- */
+html.tv-device[data-mode="light"] body, html.tv-device[data-mode="light"] .bg { background: #F4F4F4; color: #1E1E1E; }
+html.tv-device[data-mode="light"] .bg { background: -webkit-radial-gradient(50% -20%, ellipse, #FFFFFF 0%, #F4F4F4 60%); background: radial-gradient(ellipse at 50% -20%, #FFFFFF 0%, #F4F4F4 60%); }
+html.tv-device[data-mode="light"] .logo { background: #1E1E1E; }
+html.tv-device[data-mode="light"] .logo i { border-left-color: #F4F4F4; }
+html.tv-device[data-mode="light"] .brand-text, html.tv-device[data-mode="light"] .counter b, html.tv-device[data-mode="light"] .question,
+html.tv-device[data-mode="light"] .lock-title, html.tv-device[data-mode="light"] .lock-title em, html.tv-device[data-mode="light"] .lock-desc b,
+html.tv-device[data-mode="light"] .pair-title, html.tv-device[data-mode="light"] .fb-answer, html.tv-device[data-mode="light"] .update-text { color: #1E1E1E; }
+html.tv-device[data-mode="light"] .pill, html.tv-device[data-mode="light"] .kbd { background: rgba(0,0,0,.06); color: #666666; }
+html.tv-device[data-mode="light"] .clock, html.tv-device[data-mode="light"] .crumb-main, html.tv-device[data-mode="light"] .lock-desc,
+html.tv-device[data-mode="light"] .pair-eyebrow, html.tv-device[data-mode="light"] .fb-tip, html.tv-device[data-mode="light"] .pool-status { color: #666666; }
+html.tv-device[data-mode="light"] .counter, html.tv-device[data-mode="light"] .hint, html.tv-device[data-mode="light"] .lock-note { color: #999999; }
+html.tv-device[data-mode="light"] .option, html.tv-device[data-mode="light"] .written-answer, html.tv-device[data-mode="light"] .lock-badge,
+html.tv-device[data-mode="light"] .update-tip, html.tv-device[data-mode="light"] .pair-url { background: #FFFFFF; color: #1E1E1E; -webkit-box-shadow: 0 .6rem 2rem rgba(0,0,0,.06); box-shadow: 0 .6rem 2rem rgba(0,0,0,.06); }
+html.tv-device[data-mode="light"] .option .letter, html.tv-device[data-mode="light"] .pair-steps li b { background: #F4F4F4; color: #666666; }
+html.tv-device[data-mode="light"] .pair-steps li { color: #444444; }
+html.tv-device[data-mode="light"] .option.focused, html.tv-device[data-mode="light"] .written-answer.focused { background: #1E1E1E; color: #FFFFFF; -webkit-box-shadow: 0 2.6rem 5rem rgba(0,0,0,.22); box-shadow: 0 2.6rem 5rem rgba(0,0,0,.22); }
+html.tv-device[data-mode="light"] .option.focused .letter { background: #FFFFFF; color: #1E1E1E; }
+html.tv-device[data-mode="light"] .option.right { background: #EEF4EC; color: #1E1E1E; }
+html.tv-device[data-mode="light"] .option.wrong { background: #F8ECE8; color: #1E1E1E; }
+html.tv-device[data-mode="light"] .lock-badge { color: #1E1E1E; }
+html.tv-device[data-mode="light"] .btn, html.tv-device[data-mode="light"] .btn-primary, html.tv-device[data-mode="light"] .feedback .btn,
+html.tv-device[data-mode="light"] .update-btn, html.tv-device[data-mode="light"] .update-close { background: #E9E9E9; color: #1E1E1E; }
+html.tv-device[data-mode="light"] .btn.focused, html.tv-device[data-mode="light"] .feedback .btn.focused, html.tv-device[data-mode="light"] .update-btn.focused,
+html.tv-device[data-mode="light"] .update-close.focused { background: #1E1E1E; color: #FFFFFF; -webkit-box-shadow: 0 1.8rem 4rem rgba(0,0,0,.2); box-shadow: 0 1.8rem 4rem rgba(0,0,0,.2); }
+html.tv-device[data-mode="light"] .feedback { background: #FFFFFF; -webkit-box-shadow: 0 -1.4rem 4rem rgba(0,0,0,.08); box-shadow: 0 -1.4rem 4rem rgba(0,0,0,.08); }
+html.tv-device[data-mode="light"] .fb-title { color: #4E8A57; }
+html.tv-device[data-mode="light"] .is-wrong .fb-title { color: #B8574B; }
+html.tv-device[data-mode="light"] .toast { background: #1E1E1E; color: #FFFFFF; }
+html.tv-device[data-mode="light"] .qr-box { -webkit-box-shadow: 0 2rem 6rem rgba(0,0,0,.12); box-shadow: 0 2rem 6rem rgba(0,0,0,.12); }
 html:not(.tv-device) .lock-badge svg { width: 56px; height: 56px; margin-top: 0; }
+
+
+/* ---------- 焦点（方案 B，参考 Netflix）：底色几乎不变，选中项加一圈柔和的浅灰描边并放大 5%，文字颜色不变 ---------- */
+html.tv-device .logo { background: #B3B3B3; }
+html.tv-device .logo i { border-left-color: #141414; }
+html.tv-device .lock-badge, html.tv-device .pair-steps li b { color: #CFCFCF; }
+
+html.tv-device .option, html.tv-device .written-answer { background: #222222; color: #E8E8E8; }
+html.tv-device .option .letter { background: #2E2E2E; color: #A3A3A3; }
+html.tv-device .btn, html.tv-device .btn-primary, html.tv-device .btn-ghost, html.tv-device .feedback .btn, html.tv-device .update-btn, html.tv-device .update-close { background: #2A2A2A; color: #E8E8E8; }
+
+html.tv-device .option.focused, html.tv-device .written-answer.focused,
+html.tv-device .btn.focused, html.tv-device .btn-ghost.focused, html.tv-device .feedback .btn.focused, html.tv-device .update-btn.focused, html.tv-device .update-close.focused {
+  background: #2A2A2A; color: #F0F0F0; -webkit-transform: scale(1.05); transform: scale(1.05);
+  -webkit-box-shadow: inset 0 0 0 .22rem rgba(229,229,229,.72); box-shadow: inset 0 0 0 .22rem rgba(229,229,229,.72); }
+html.tv-device .option.focused .letter { background: #3A3A3A; color: #F0F0F0; }
+html.tv-device .option.selected { -webkit-box-shadow: inset 0 0 0 .22rem rgba(229,229,229,.35); box-shadow: inset 0 0 0 .22rem rgba(229,229,229,.35); }
+html.tv-device .option.selected .letter { background: #8A8A8A; color: #141414; }
+html.tv-device .option.selected.focused { -webkit-box-shadow: inset 0 0 0 .22rem rgba(229,229,229,.72); box-shadow: inset 0 0 0 .22rem rgba(229,229,229,.72); }
+
+html.tv-device[data-mode="light"] .logo { background: #555555; }
+html.tv-device[data-mode="light"] .logo i { border-left-color: #F4F4F4; }
+html.tv-device[data-mode="light"] .lock-badge, html.tv-device[data-mode="light"] .pair-steps li b { color: #555555; }
+html.tv-device[data-mode="light"] .pair-steps li b { background: #FFFFFF; }
+html.tv-device[data-mode="light"] .option, html.tv-device[data-mode="light"] .written-answer { background: #FFFFFF; color: #1E1E1E; -webkit-box-shadow: none; box-shadow: none; }
+html.tv-device[data-mode="light"] .option .letter { background: #EFEFEF; color: #666666; }
+html.tv-device[data-mode="light"] .btn, html.tv-device[data-mode="light"] .btn-primary, html.tv-device[data-mode="light"] .btn-ghost, html.tv-device[data-mode="light"] .feedback .btn,
+html.tv-device[data-mode="light"] .update-btn, html.tv-device[data-mode="light"] .update-close { background: #E9E9E9; color: #1E1E1E; }
+html.tv-device[data-mode="light"] .option.focused, html.tv-device[data-mode="light"] .written-answer.focused,
+html.tv-device[data-mode="light"] .btn.focused, html.tv-device[data-mode="light"] .btn-ghost.focused, html.tv-device[data-mode="light"] .feedback .btn.focused, html.tv-device[data-mode="light"] .update-btn.focused, html.tv-device[data-mode="light"] .update-close.focused {
+  background: #FFFFFF; color: #1E1E1E;
+  -webkit-box-shadow: inset 0 0 0 .22rem rgba(30,30,30,.5), 0 1.2rem 3rem rgba(0,0,0,.08); box-shadow: inset 0 0 0 .22rem rgba(30,30,30,.5), 0 1.2rem 3rem rgba(0,0,0,.08); }
+html.tv-device[data-mode="light"] .option.focused .letter { background: #E4E4E4; color: #1E1E1E; }
+html.tv-device[data-mode="light"] .option.selected .letter { background: #666666; color: #FFFFFF; }
+html.tv-device[data-mode="light"] .toast { background: #333333; color: #F4F4F4; }
