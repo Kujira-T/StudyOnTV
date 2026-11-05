@@ -258,7 +258,8 @@ class LanServer(
     
     /** gzip 后的静态文件缓存（资源随 APK 固定不变，压缩一次即可） */
     private val gzipCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
-    private val etag = "\"" + BuildConfig.VERSION_CODE + "-" + BuildConfig.VERSION_NAME + "\""
+    // 包含安装时间：同版本号的重新安装 / 调试构建也会让浏览器拿到新页面
+    private val etag = "\"" + BuildConfig.VERSION_CODE + "-" + (try { context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime } catch (_: Exception) { 0L }) + "\""
 
     private fun serveStatic(path: String, out: OutputStream, gzip: Boolean, ifNoneMatch: String?) {
         val (assetPath, contentType) = when {
