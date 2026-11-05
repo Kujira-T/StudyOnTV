@@ -24,19 +24,17 @@ The controlled device hosts its own local HTTP panel. Parents connect over the s
 
 The panel separates rules, question banks, grading and usage records. APIs require authentication as well; the former six-digit access code and unauthenticated question-bank access have been removed.
 
-Updates use Pgyer first, with GitHub, jsDelivr and download mirrors as fallbacks. APKs are checked for package name, version and signing identity; SHA-256 is also checked when supplied. Device update checks use public download pages and do not contain account API credentials.
-
 Subjective submissions can be graded by a parent, an authenticated Agent, or an optional OpenAI-compatible AI endpoint such as DeepSeek, Qwen, Zhipu, Kimi, SiliconFlow or a local Ollama server, with built-in presets, a connection test and model list fetching. Handwriting requires a vision-capable model or human review. Failed AI calls preserve the submission for later review. Enabling AI sends question and answer content to the configured provider.
 
 [Question-bank and grading API](./docs/ai-api.md) · [Gameplay rules](./docs/gameplay.md) · [Example question bank](./data/banks/open-play.json)
 
 ## Screenshots
 
-![Tablet learning](./docs/screenshots/tablet-quiz.png)
-![Tablet handwriting](./docs/screenshots/tablet-handwriting.png)
-![Parent review](./docs/screenshots/parent-review.png)
-![Parent dashboard](./docs/screenshots/parent-desktop.png)
-![TV learning](./docs/screenshots/tv-quiz.png)
+![Tablet learning](./docs/screenshots/v0.3.0/tablet-quiz.png)
+![Tablet handwriting](./docs/screenshots/v0.3.0/tablet-handwriting.png)
+![Parent review](./docs/screenshots/v0.3.0/parent-review.png)
+![Parent dashboard](./docs/screenshots/v0.3.0/parent-desktop.png)
+![TV learning](./docs/screenshots/v0.3.0/tv-quiz.png)
 
 ## Screen-time limits
 

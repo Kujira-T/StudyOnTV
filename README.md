@@ -46,7 +46,6 @@ Android 平板、手机和电视使用同一套规则，分别安装对应版本
 - **电视遥控器与音频**：方向键即可完成作答、填空和更新。学习页出现时先暂停播放器、请求音频焦点；仍继续播放时静音兜底，退出管控后恢复原静音状态，原先未静音时恢复媒体音量。
 - **深色 / 浅色**：电视默认深色，手机和平板跟随系统，家长可在面板切换。
 - **AI 批改更省心**：内置 DeepSeek、通义千问、智谱、Kimi、硅基流动、本地 Ollama 等预设，一键测试连接、获取模型列表。
-- **蒲公英优先更新**：TV 与手机 / 平板独立分发，蒲公英不可用时再尝试 GitHub、jsDelivr 和加速镜像；下载校验包名、版本与签名，有 SHA-256 时同时校验。
 - **管控保护**：规则可开启「管控期间拦截系统设置」，家长验证后可临时进入，自由时段不拦截。支持设备管理员的系统可另行授权防卸载；这些权限均可选。
 - **开机恢复**：接收 Android 开机、部分系统快速开机和覆盖升级广播，尝试恢复管理服务；厂商自启动及遥控器待机清后台场景见安装指南。
 - **密码管理**：首次设置管理密码，扫码面板和 API 都要验证。学习页标题连点 5 次，或焦点在最上方时遥控器「上」短按 5 次，可重新打开家长验证入口；面板里也可以修改密码。
@@ -60,32 +59,32 @@ Android 平板、手机和电视使用同一套规则，分别安装对应版本
 ## 截图
 
 <div align="center">
-<img src="./docs/screenshots/tablet-quiz.png" width="780" alt="平板公式与主观题作答"><br><sub>平板学习 · 公式、文字与手写作答</sub><br><br>
-<img src="./docs/screenshots/tablet-handwriting.png" width="780" alt="平板手写作答"><br><sub>手写过程可提交家长、Agent 或图像模型批改</sub><br><br>
-<img src="./docs/screenshots/phone-quiz.png" width="280" alt="手机公式与主观题作答"><br><sub>手机学习 · 与平板共用题库和规则</sub><br><br>
-<img src="./docs/screenshots/parent-review.png" width="280" alt="家长批改与 AI 设置"><br><sub>家长批改与 AI 设置</sub><br><br>
-<img src="./docs/screenshots/tv-quiz.png" width="780" alt="电视端答题">
+<img src="./docs/screenshots/v0.3.0/tablet-quiz.png" width="780" alt="平板公式与主观题作答"><br><sub>平板学习 · 公式、文字与手写作答</sub><br><br>
+<img src="./docs/screenshots/v0.3.0/tablet-handwriting.png" width="780" alt="平板手写作答"><br><sub>手写过程可提交家长、Agent 或图像模型批改</sub><br><br>
+<img src="./docs/screenshots/v0.3.0/phone-quiz.png" width="280" alt="手机公式与主观题作答"><br><sub>手机学习 · 与平板共用题库和规则</sub><br><br>
+<img src="./docs/screenshots/v0.3.0/parent-review.png" width="280" alt="家长批改与 AI 设置"><br><sub>家长批改与 AI 设置</sub><br><br>
+<img src="./docs/screenshots/v0.3.0/tv-quiz.png" width="780" alt="电视端答题">
 <br><sub>遥控器选题，答完在下方显示对错、正确答案与解析</sub>
 
 <br><br>
 
-<img src="./docs/screenshots/tv-pair.png" width="780" alt="家长扫码连接">
+<img src="./docs/screenshots/v0.3.0/tv-pair.png" width="780" alt="家长扫码连接">
 <br><sub>家长用手机扫码，同一个 WiFi 即可管理</sub>
 
 <br><br>
 
-<img src="./docs/screenshots/tv-lock-schedule.png" width="780" alt="未到可用时段">
+<img src="./docs/screenshots/v0.3.0/tv-lock-schedule.png" width="780" alt="未到可用时段">
 <br><sub>未到可用时段时停留提示页，显示下次可用日期和时间</sub>
 
 <br><br>
 
 <table><tr>
-<td align="center"><img src="./docs/screenshots/parent-rules.png" width="220" alt="规则设置"><br><sub>规则设置</sub></td>
-<td align="center"><img src="./docs/screenshots/parent-bank.png" width="220" alt="题库管理"><br><sub>题库管理</sub></td>
-<td align="center"><img src="./docs/screenshots/parent-log.png" width="220" alt="使用记录"><br><sub>7天使用记录</sub></td>
+<td align="center"><img src="./docs/screenshots/v0.3.0/parent-rules.png" width="220" alt="规则设置"><br><sub>规则设置</sub></td>
+<td align="center"><img src="./docs/screenshots/v0.3.0/parent-bank.png" width="220" alt="题库管理"><br><sub>题库管理</sub></td>
+<td align="center"><img src="./docs/screenshots/v0.3.0/parent-log.png" width="220" alt="使用记录"><br><sub>7天使用记录</sub></td>
 </tr></table>
 
-<img src="./docs/screenshots/parent-desktop.png" width="780" alt="电脑上的家长管理面板"><br><sub>电脑管理 · 规则、题库、批改与学习记录</sub>
+<img src="./docs/screenshots/v0.3.0/parent-desktop.png" width="780" alt="电脑上的家长管理面板"><br><sub>电脑管理 · 规则、题库、批改与学习记录</sub>
 
 </div>
 

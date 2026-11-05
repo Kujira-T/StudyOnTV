@@ -123,9 +123,9 @@ adb shell monkey -p com.studyontv.tv -c android.intent.category.LAUNCHER 1
 
 **应用更新：** 家长面板可检查更新，默认优先蒲公英，失败再尝试 GitHub、CDN 与镜像。TV 和手机 / 平板分别更新，下载后核对包名、版本和签名；覆盖安装保留本机数据。需要调整「安装未知应用」权限时，可先由家长验证后进入系统设置。
 
-<img src="./screenshots/setup-mobile.png" width="260" alt="手机权限页：未授权也可进入设置和学习">
+<img src="./screenshots/v0.3.0/setup-mobile.png" width="260" alt="手机权限页：未授权也可进入设置和学习">
 
-<img src="./screenshots/setup-tv.png" width="760" alt="电视权限页：只开悬浮窗即可启用简易管理">
+<img src="./screenshots/v0.3.0/setup-tv.png" width="760" alt="电视权限页：只开悬浮窗即可启用简易管理">
 
 ---
 
