@@ -6,8 +6,6 @@
 
 **Learn first. Watch later.** · 支持Android 平板、手机和电视，不需要自建服务器
 
-本项目已链接并认可 [LINUX DO](https://linux.do) 社区。
-
 [![Stars](https://img.shields.io/github/stars/chadyi/StudyOnTV?style=for-the-badge&logo=github&label=Stars)](https://github.com/chadyi/StudyOnTV/stargazers)
 [![Release](https://img.shields.io/github/v/release/chadyi/StudyOnTV?style=for-the-badge&label=Release)](https://github.com/chadyi/StudyOnTV/releases/latest)
 [![Platform](https://img.shields.io/badge/Android-5.0%2B-3DDC84?style=for-the-badge&logo=android)](https://github.com/chadyi/StudyOnTV)
@@ -167,7 +165,7 @@ A：题库可以在手机管理页导出 JSON，换电视后重新导入。
 
 ## 社区建议与致谢
 
--  [LINUX DO](https://linux.do) **xiuweng**：支持手机管控、通过隐藏手势重新打开管理入口，以及答错后累计加练、重启保留加练池。
+- ** [LINUX DO](https://linux.do) xiuweng**：支持手机管控、通过隐藏手势重新打开管理入口，以及答错后累计加练、重启保留加练池。
 - ** [LINUX DO](https://linux.do) free-swimming**：设置题目星级难度，并为不同难度配置不同的时长奖励。
 - **[Issue #2](https://github.com/chadyi/StudyOnTV/issues/2)**：补充修改密码、AI 服务预设与连接测试，改进题库管理，图表与公式按需加载。
 - **[Issue #3](https://github.com/chadyi/StudyOnTV/issues/3)**：答题结果放在题目下方，显示正确答案、解析与鼓励语，由孩子手动继续；加强后台音频处理。
@@ -177,6 +175,8 @@ A：题库可以在手机管理页导出 JSON，换电视后重新导入。
 这些建议也延伸到其他端端，欢迎反馈使用体验。
 
 ---
+
+本项目已链接并认可 [LINUX DO](https://linux.do) 社区。
 
 ## License
 
