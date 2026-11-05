@@ -20,7 +20,7 @@ object GradingService {
     fun providers(): JSONArray = JSONArray().apply {
         fun p(id: String, name: String, base: String, model: String, vision: String = "", note: String = "", keyUrl: String = "") = put(JSONObject()
             .put("id", id).put("name", name).put("baseUrl", base).put("model", model).put("visionModel", vision).put("note", note).put("keyUrl", keyUrl))
-        p("deepseek", "DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat", "", "文字答案性价比高，不支持图片", "https://platform.deepseek.com/api_keys")
+        p("deepseek", "DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat", "deepseek-chat", "性价比高，支持文字与手写图片（开启“模型支持图像”）", "https://platform.deepseek.com/api_keys")
         p("dashscope", "阿里云百炼（通义千问）", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus", "qwen-vl-plus", "", "https://bailian.console.aliyun.com/?apiKey=1")
         p("zhipu", "智谱 GLM", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash", "glm-4v-flash", "有免费模型", "https://open.bigmodel.cn/usercenter/apikeys")
         p("moonshot", "月之暗面 Kimi", "https://api.moonshot.cn/v1", "moonshot-v1-8k", "", "", "https://platform.moonshot.cn/console/api-keys")

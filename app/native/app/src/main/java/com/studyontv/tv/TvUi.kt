@@ -16,7 +16,7 @@ import android.widget.TextView
 /**
  * 原生页面（权限引导、家长验证、更新、输入）共用的样式，与学习页保持一致：
  * 参考 Apple TV / Netflix —— 选中项加一圈柔和浅灰描边并放大（不反色，参考 Netflix），
- * 远距离也一眼看出焦点在哪里。电视版支持深色 / 浅色 / 跟随系统；手机版使用浅色。
+ * 远距离也一眼看出焦点在哪里。深色 / 浅色 / 跟随系统由家长面板设置，手机 / 平板同样适用。
  */
 object TvUi {
     data class Palette(
@@ -30,21 +30,23 @@ object TvUi {
     private val DARK = Palette(0xFF141414.toInt(), 0xFF222222.toInt(), 0xFF2A2A2A.toInt(),
         0xFFE8E8E8.toInt(), 0xFFA3A3A3.toInt(), 0xFF6E6E6E.toInt(),
         0xFF2A2A2A.toInt(), 0xFFF0F0F0.toInt(), 0xFFB5B5B5.toInt(),
-        0xFF86B98C.toInt(), 0xFFD9A066.toInt())
+        0xFF8FDB5C.toInt(), 0xFFD9A066.toInt())
     private val LIGHT = Palette(0xFFF4F4F4.toInt(), 0xFFFFFFFF.toInt(), 0xFFE9E9E9.toInt(),
         0xFF1E1E1E.toInt(), 0xFF666666.toInt(), 0xFF999999.toInt(),
         0xFFFFFFFF.toInt(), 0xFF1E1E1E.toInt(), 0xFF666666.toInt(),
-        0xFF4E8A57.toInt(), 0xFFB0703A.toInt())
+        0xFF58A700.toInt(), 0xFFB0703A.toInt())
 
     fun systemNight(context: Context): Boolean =
         (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
     /** 家长在管理面板「界面与反馈」里选择的外观 */
-    private fun mode(context: Context): String = try { DeviceRuntime.store.config().optString("theme", "dark") } catch (_: Throwable) { "dark" }
+    private fun mode(context: Context): String = try { DeviceRuntime.store.config().optString("theme") } catch (_: Throwable) { if (DeviceBridge.isTv(context)) "dark" else "system" }
 
-    fun dark(context: Context): Boolean {
-        if (!DeviceBridge.isTv(context)) return false
-        return when (mode(context)) { "light" -> false; "system" -> systemNight(context); else -> true }
+    /** 默认值见 LocalStore.config()：电视深色，手机 / 平板跟随系统 */
+    fun dark(context: Context): Boolean = when (mode(context)) {
+        "light" -> false
+        "dark" -> true
+        else -> systemNight(context)
     }
 
     fun palette(context: Context) = if (dark(context)) DARK else LIGHT
@@ -60,6 +62,7 @@ object TvUi {
 
     /** 选中时放大 + 浮起（电视）；手机上只改变底色 */
     private fun lift(view: View, scale: Float) {
+        if (scale == 1f) return
         val tv = DeviceBridge.isTv(view.context)
         view.onFocusChangeListener = View.OnFocusChangeListener { v, focused ->
             if (tv) v.animate().scaleX(if (focused) scale else 1f).scaleY(if (focused) scale else 1f)
@@ -99,9 +102,8 @@ object TvUi {
             background = focusable(context, if (primary) p.surface2 else p.surface, 14)
             setTextColor(textStates(p.focusText, p.text))
         } else {
-            val fill = if (primary) 0xFF1D1D1F.toInt() else 0xFFE5E5EA.toInt()
-            background = shape(context, fill, 14)
-            setTextColor(if (primary) 0xFFFFFFFF.toInt() else 0xFF1D1D1F.toInt())
+            background = shape(context, if (primary) p.text else p.surface2, 14)
+            setTextColor(if (primary) p.bg else p.text)
         }
         lift(this, 1.06f)
         setOnClickListener { action() }
@@ -156,7 +158,7 @@ object TvUi {
         row.addView(status, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(context, 16) })
         row.addView(text(context, "›", if (tv) 26f else 22f).apply { setTextColor(textStates(p.focusText, p.text3)); isDuplicateParentStateEnabled = true },
             LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(context, 12) })
-        lift(row, 1.03f)
+        // 列表行不放大（放大后会超出滚动区域被裁切），只靠描边标出焦点，与 Apple TV「设置」一致
         return Row(row, status, icon, context)
     }
 }

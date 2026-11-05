@@ -95,7 +95,7 @@ class ParentActivity : Activity() {
         if (!setup || changing) column.addView(TvUi.button(this, if (changing) "取消" else "返回答题") {
             if (changing) connection() else { startActivity(Intent(this, MainActivity::class.java)); finish() }
         }, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(12) })
-        if (setup && !changing) column.addView(text("之后在学习页点击标题 5 次，或在最上方连续短按遥控器 ↑ 5 次，可重新打开此入口。", 14f, TvUi.muted(this)))
+        if (setup && !changing) column.addView(text(if (tv) "之后在学习页最上方连续短按遥控器 ↑ 5 次，可重新打开此入口。" else "之后在学习页连续点击左上角标题 5 次，可重新打开此入口。", 14f, TvUi.muted(this)))
         setContentView(ScrollView(this).apply { isFillViewport = true; setBackgroundColor(TvUi.background(this@ParentActivity)); addView(content) })
         secret.requestFocus()
     }

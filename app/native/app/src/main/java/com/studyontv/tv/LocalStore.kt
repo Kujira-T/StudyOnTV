@@ -137,12 +137,12 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             .put("difficultyRewardEnabled", false)
             .put("difficultyRewards", JSONObject().put("1", 1).put("2", 2).put("3", 3).put("4", 4).put("5", 5))
             .put("praisePhrases", JSONArray(DEFAULT_PRAISE)).put("encouragePhrases", JSONArray(DEFAULT_ENCOURAGE))
-            .put("autoNextSeconds", 0).put("theme", "dark")
+            .put("autoNextSeconds", 0).put("theme", if (BuildConfig.FLAVOR == "tv") "dark" else "system")
             .put("version", 1)
         val saved = try { JSONObject(get("config", "{}")) } catch (e: Exception) { JSONObject() }
         saved.keys().forEach { defaults.put(it, saved.get(it)) }
         // 旧版的四种配色主题合并为深色 / 浅色
-        defaults.put("theme", when (defaults.optString("theme")) { "light", "daylight" -> "light"; "system" -> "system"; else -> "dark" })
+        defaults.put("theme", when (defaults.optString("theme")) { "light", "daylight" -> "light"; "system" -> "system"; "dark", "midnight", "nord", "amber" -> "dark"; else -> if (BuildConfig.FLAVOR == "tv") "dark" else "system" })
         val timePattern = Regex("([01][0-9]|2[0-3]):[0-5][0-9]")
         val validStart = timePattern.matches(defaults.optString("windowStart"))
         val validEnd = timePattern.matches(defaults.optString("windowEnd"))

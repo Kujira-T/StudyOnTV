@@ -68,8 +68,9 @@ class OnboardingActivity : Activity() {
             actions.addView(manage, LinearLayout.LayoutParams(-1, dp(52)))
             actions.addView(learn, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(12) })
         } else {
-            actions.addView(manage, LinearLayout.LayoutParams(0, dp(50), 1f))
-            actions.addView(learn, LinearLayout.LayoutParams(0, dp(50), 1f).apply { leftMargin = dp(10) })
+            actions.orientation = LinearLayout.VERTICAL
+            actions.addView(manage, LinearLayout.LayoutParams(-1, dp(52)))
+            actions.addView(learn, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(10) })
         }
 
         // 右侧：权限列表
@@ -83,7 +84,7 @@ class OnboardingActivity : Activity() {
         add(android.R.drawable.ic_menu_view, "悬浮窗", "到时间后在其他应用上方显示学习页", false, { GateOverlay.canDraw(this) }) {
             openSettings(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, true)
         }
-        add(android.R.drawable.ic_menu_manage, "无障碍服务", "及时识别应用切换（部分电视不支持，可跳过）", true, { WatchAccessibilityService.connected }) {
+        add(android.R.drawable.ic_menu_manage, "无障碍服务", if (tv) "及时识别应用切换，部分电视不支持" else "及时识别应用切换", true, { WatchAccessibilityService.connected }) {
             openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         }
         add(android.R.drawable.ic_menu_recent_history, "使用情况访问", "只统计其他应用的使用时长", true, { Foreground.hasUsageAccess(this) }) {
@@ -93,7 +94,12 @@ class OnboardingActivity : Activity() {
             if (Build.VERSION.SDK_INT >= 23 && !ignoringBattery()) openSettings(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, true, Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
             else openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, true)
         }
-        list.addView(TvUi.text(this, "部分电视没有“电池优化”，可在系统“应用管理”里允许自启动。", if (tv) 13f else 12f, p.text3),
+        // 电视一般不显示通知，只在手机 / 平板上提示
+        if (!tv && Build.VERSION.SDK_INT >= 33) add(android.R.drawable.ic_dialog_info, "通知", "显示“使用时间管理中”的常驻通知", true,
+            { checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED }) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 9)
+        }
+        list.addView(TvUi.text(this, if (tv) "部分电视没有“电池优化”，可在系统“应用管理”里允许自启动。" else "部分手机还需要在系统设置里允许“自启动”或“后台活动”。", if (tv) 13f else 12f, p.text3),
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6); leftMargin = dp(4) })
 
         val root: View = if (tv) {
