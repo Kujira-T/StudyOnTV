@@ -137,7 +137,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             .put("difficultyRewardEnabled", false)
             .put("difficultyRewards", JSONObject().put("1", 1).put("2", 2).put("3", 3).put("4", 4).put("5", 5))
             .put("praisePhrases", JSONArray(DEFAULT_PRAISE)).put("encouragePhrases", JSONArray(DEFAULT_ENCOURAGE))
-            .put("autoNextSeconds", 0).put("theme", if (BuildConfig.FLAVOR == "tv") "dark" else "system")
+            .put("autoNextSeconds", 0).put("scheduleMode", "allow").put("theme", if (BuildConfig.FLAVOR == "tv") "dark" else "system")
             .put("version", 1)
         val saved = try { JSONObject(get("config", "{}")) } catch (e: Exception) { JSONObject() }
         saved.keys().forEach { defaults.put(it, saved.get(it)) }
@@ -193,6 +193,10 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             }
             require(clean.length() <= 30) { "鼓励语最多 30 句" }
             next.put(key, if (clean.length() == 0) JSONArray(if (key == "praisePhrases") DEFAULT_PRAISE else DEFAULT_ENCOURAGE) else clean)
+        }
+        if (input.has("scheduleMode")) {
+            require(input.getString("scheduleMode") in listOf("allow", "control")) { "未知的时段用途" }
+            next.put("scheduleMode", input.getString("scheduleMode"))
         }
         if (input.has("theme")) {
             require(input.getString("theme") in listOf("dark", "light", "system")) { "外观需要为深色、浅色或跟随系统" }

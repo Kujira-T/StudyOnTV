@@ -51,6 +51,14 @@ class LearningEngine(private val store: LocalStore) {
         return cal.timeInMillis
     }
 
+    /**
+     * 时段有两种用途（Issue #4）：
+     *  allow   —— 只在这段时间内可以使用（原有行为，时段外锁定）
+     *  control —— 只在这段时间内需要先答题；时段外完全不管控、不计时（例如白天老人看电视）
+     */
+    private fun freeNow(c: JSONObject): Boolean =
+        c.optString("scheduleMode", "allow") == "control" && !c.optBoolean("allDay") && !inWindow(c)
+
     @Synchronized
     fun status(): JSONObject {
         day()
@@ -58,17 +66,19 @@ class LearningEngine(private val store: LocalStore) {
         val remaining = number("credit_ms")
         val used = number("used_ms")
         val rounds = store.roundsDoneToday()
+        val free = freeNow(c)
         val reason = when {
+            free -> ""
             used >= c.getLong("dailyMinutes") * 60000 -> "quota"
             remaining <= 0 && rounds >= c.getInt("roundsPerDay") -> "rounds"
-            !inWindow(c) -> "schedule"
+            c.optString("scheduleMode", "allow") != "control" && !inWindow(c) -> "schedule"
             remaining > 0 -> ""
             else -> "timeup"
         }
         val nextAt = if (reason in listOf("quota", "rounds", "schedule")) nextAvailable(c, reason != "schedule") else 0L
         return JSONObject().put("remainingSeconds", remaining / 1000).put("usedMinutes", used / 60000.0)
             .put("extraPool", number("extra_pool")).put("wrongProgress", number("wrong_progress"))
-            .put("nextAvailableAt", nextAt)
+            .put("nextAvailableAt", nextAt).put("free", free)
             .put("roundsDoneToday", rounds).put("reason", reason).put("awaitingReview", active()?.has("pendingReview") == true)
     }
 
@@ -78,6 +88,7 @@ class LearningEngine(private val store: LocalStore) {
     @Synchronized
     fun consume(milliseconds: Long) {
         day()
+        if (freeNow(store.config())) { flushUsage(); return }   // 自由时段不扣时长
         val amount = min(milliseconds.coerceIn(0, 5000), min(number("credit_ms"),
             (store.config().getLong("dailyMinutes") * 60000 - number("used_ms")).coerceAtLeast(0)))
         if (amount <= 0) { flushUsage(); return }
@@ -132,6 +143,8 @@ class LearningEngine(private val store: LocalStore) {
             .put("feedback", feedback.optString("feedback")).put("result", feedback.getJSONObject("result"))
         if (c.getString("playMode") != "practice" && st.getString("reason") in listOf("quota", "rounds", "schedule"))
             return JSONObject().put("blocked", st.getString("reason")).put("status", st)
+        if (st.optBoolean("free") && c.getString("playMode") != "practice")
+            return JSONObject().put("free", true).put("status", st)
         if (st.optLong("remainingSeconds") > 0 && c.getString("playMode") != "practice")
             return JSONObject().put("watching", true).put("status", st)
         var round = active()

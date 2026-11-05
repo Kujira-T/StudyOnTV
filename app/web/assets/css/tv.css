@@ -812,3 +812,26 @@ html:not(.tv-device) .fb-title { color: var(--m-ok-strong); }
 html:not(.tv-device) .is-wrong .fb-title { color: var(--m-bad-strong); }
 html:not(.tv-device) .feedback .btn, html:not(.tv-device) .feedback.is-right .btn-primary { background: var(--m-ok); color: var(--m-ok-ink); font-weight: 700; }
 html:not(.tv-device) .feedback.is-wrong .btn, html:not(.tv-device) .btn-danger { background: var(--m-bad); color: var(--m-bad-ink); font-weight: 700; }
+
+/* 平板（宽度 ≥ 900px）：放大字号和点按区域，内容整体下移，不再缩在左上角 */
+@media (min-width: 900px) {
+  html:not(.tv-device) .topbar { max-width: 1180px; padding: 28px 40px 8px; }
+  html:not(.tv-device) #stage { max-width: 1180px; padding: 4vh 40px 180px; }
+  html:not(.tv-device) .quiz-head { margin-bottom: 36px; }
+  html:not(.tv-device) .crumb-main, html:not(.tv-device) .counter { font-size: 17px; }
+  html:not(.tv-device) .counter b { font-size: 28px; }
+  html:not(.tv-device) .question { font-size: 40px; margin-bottom: 40px; }
+  html:not(.tv-device) .question.long { font-size: 32px; }
+  html:not(.tv-device) .question.longer { font-size: 26px; }
+  html:not(.tv-device) .options { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  html:not(.tv-device) .option { width: auto; margin: 0; min-height: 96px; padding: 22px 26px; font-size: 24px; }
+  html:not(.tv-device) .option .letter { width: 44px; height: 44px; line-height: 44px; font-size: 17px; margin-right: 20px; }
+  html:not(.tv-device) .written-answer { grid-column: 1 / -1; font-size: 22px; min-height: 200px; }
+  html:not(.tv-device) .input-tools, html:not(.tv-device) .answer-submit { grid-column: 1 / -1; }
+  html:not(.tv-device) .btn { font-size: 18px; min-height: 56px; padding: 0 30px; }
+  html:not(.tv-device) .feedback { padding: 22px max(40px, calc((100vw - 1100px) / 2)) 26px; }
+  html:not(.tv-device) .fb-title { font-size: 24px; }
+  html:not(.tv-device) .fb-answer { font-size: 19px; }
+  html:not(.tv-device) .fb-tip { font-size: 16px; }
+  html:not(.tv-device) .feedback .btn { min-width: 200px; }
+}

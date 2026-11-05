@@ -87,6 +87,7 @@ class GateOverlay(
         handler.removeCallbacks(release); releaseScheduled = false
         val view = web ?: return
         suspend()
+        MediaPause.release(context)
         web = null
         currentReason = ""
         view.destroy()
@@ -118,7 +119,7 @@ class GateOverlay(
         }
         @JavascriptInterface fun exitToLauncher() {
             val status = DeviceRuntime.learning.status()
-            if (status.getString("reason").isNotEmpty() || status.optLong("remainingSeconds") <= 0) return
+            if (status.getString("reason").isNotEmpty() || (status.optLong("remainingSeconds") <= 0 && !status.optBoolean("free"))) return
             handler.post {
                 hide()
                 if (goHome?.invoke() != true) context.startActivity(Intent(Intent.ACTION_MAIN)

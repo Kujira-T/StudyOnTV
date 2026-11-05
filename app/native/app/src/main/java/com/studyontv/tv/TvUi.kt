@@ -139,7 +139,7 @@ object TvUi {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             isFocusable = true; isClickable = true
-            setPadding(dp(context, 22), dp(context, 16), dp(context, 22), dp(context, 16))
+            setPadding(dp(context, 22), dp(context, if (tv) 12 else 16), dp(context, 22), dp(context, if (tv) 12 else 16))
             background = focusable(context, p.surface, 16)
             setOnClickListener { action() }
         }

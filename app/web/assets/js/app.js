@@ -43,6 +43,7 @@
   function pill() {
     var c = state.config, st = state.learning;
     var left = Math.max(0, (c.roundsPerDay || 3) - (st.roundsDoneToday || 0));
+    if (st.free) { $('topPill').textContent = '自由时段'; return; }
     $('topPill').textContent = (st.remainingSeconds > 0 ? '可用 ' + Math.ceil(st.remainingSeconds / 60) + ' 分钟 · ' : '') + '还剩 ' + left + ' 组' + (st.extraPool > 0 ? ' · 加练池 ' + st.extraPool + ' 题' : '');
   }
   function loadState(callback) {
@@ -67,6 +68,15 @@
       if (result.reviewed) return reviewed(result);
       state.awaiting = false; state.reviewed = false;
       if (result.blocked) return lock(result.blocked);
+      if (result.free) {
+        // 「只在这段时间内需要先答题」模式下的时段外：不管控
+        state.lockReason = '';
+        show('lock'); icon($('lockIcon'), 'check'); $('lockTitle').textContent = '现在是自由时段';
+        $('lockDesc').textContent = '每天 ' + state.config.windowStart + ' — ' + state.config.windowEnd + ' 需要先完成学习任务，其余时间可以直接使用';
+        $('lockNote').textContent = '';
+        $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="home">返回桌面</button>';
+        focusDefault(); return;
+      }
       if (result.watching) {
         state.lockReason = '';
         show('lock'); $('lockTitle').textContent = '已解锁使用时间';
@@ -392,7 +402,8 @@
       loadState(function (error) {
         if (error) return;
         if (state.awaiting) { start(); return; }
-        if (state.screen === 'lock' && state.lockReason !== state.learning.reason) {
+        if (state.screen === 'lock' && (state.lockReason !== state.learning.reason || state.wasFree !== !!state.learning.free)) {
+          state.wasFree = !!state.learning.free;
           if (!state.learning.reason) start(); else lock(state.learning.reason);
           return;
         }
@@ -410,7 +421,7 @@
   };
   window.SOTV_UPDATE = function (info) { if (!info || !info.latest) return; window.currentUpdate = info;
     try { if (!info.force && window.localStorage.getItem('sotv_update_dismissed') === info.latest) return; } catch (e) {} $('updateText').textContent = '发现新版本 v' + info.latest; $('updateTip').className = 'update-tip show'; };
-  window.TV = { move: move, select: function () { activate(); }, back: function () { if (!state.learning.reason && state.learning.remainingSeconds > 0) nativeCall('exitToLauncher'); else toast('现在暂不可用'); }, state: state };
+  window.TV = { move: move, select: function () { activate(); }, back: function () { if (!state.learning.reason && (state.learning.remainingSeconds > 0 || state.learning.free)) nativeCall('exitToLauncher'); else toast('现在暂不可用'); }, state: state };
   window.SOTV_RESUME = function () { if (document.readyState === 'complete' && !state.busy && state.screen !== 'pair') route(); };
   window.addEventListener('hashchange', route);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

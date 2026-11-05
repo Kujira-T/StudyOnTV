@@ -21,8 +21,8 @@
 
 Android 平板、手机和电视使用同一套规则，分别安装对应版本：
 
-- **[手机 / 平板版](https://github.com/chadyi/StudyOnTV/releases/download/v0.2.1/StudyOnTV-Mobile-v0.2.1.apk)**
-- **[TV 版](https://github.com/chadyi/StudyOnTV/releases/download/v0.2.1/StudyOnTV-Android-TV-v0.2.1.apk)**
+- **[手机 / 平板版](https://github.com/chadyi/StudyOnTV/releases/download/v0.3.0/StudyOnTV-Mobile-v0.3.0.apk)**
+- **[TV 版](https://github.com/chadyi/StudyOnTV/releases/download/v0.3.0/StudyOnTV-Android-TV-v0.3.0.apk)**
 
 手机和平板直接下载安装；电视可通过 U 盘或 ADB 安装。首次打开设置管理密码，权限可以按需开启，也可以稍后再设置。
 
@@ -40,7 +40,12 @@ Android 平板、手机和电视使用同一套规则，分别安装对应版本
 - **累计加练**：答错达到阈值就增加加练题，跨天、重启保留，答对加练题逐道扣除。
 - **主观题批改**：家长手动批改、WorkBuddy / Codex 等 Agent 批改，或配置 DeepSeek 等兼容 AI API。
 - **间隔重复**：在规则里打开后，优先复习到期题，答对后延长间隔，答错后提前复习，进度跨重启保留。
-- **密码管理**：首次设置管理密码，扫码面板和 API 都要验证。标题连点 5 次，或焦点在最上方时遥控器「上」短按 5 次，可重新打开家长验证入口。
+- **答题反馈**：答完在下方显示对错、正确答案与解析，孩子按“继续”进入下一题；鼓励语可在面板自定义。
+- **电视遥控器**：按 Apple TV / Netflix 的焦点方式设计，方向键即可完成作答、填空（调出系统输入法或语音）和更新；弹出学习页时自动暂停背后的视频。
+- **深色 / 浅色**：电视默认深色，手机和平板跟随系统，家长可在面板切换。
+- **AI 批改更省心**：内置 DeepSeek、通义千问、智谱、Kimi、硅基流动、本地 Ollama 等预设，一键测试连接、获取模型列表。
+- **更新不依赖 GitHub 直连**：GitHub 不稳定时自动改用 jsDelivr 与加速镜像，下载后校验 SHA-256 与签名。
+- **密码管理**：首次设置管理密码，扫码面板和 API 都要验证。学习页标题连点 5 次，或焦点在最上方时遥控器「上」短按 5 次，可重新打开家长验证入口；面板里也可以修改密码。
 
 [玩法说明](./docs/gameplay.md) · [题库与批改 API](./docs/ai-api.md) · [示例题库](./data/banks/open-play.json)
 
@@ -57,12 +62,12 @@ Android 平板、手机和电视使用同一套规则，分别安装对应版本
 <img src="./docs/screenshots/phone-quiz.png" width="280" alt="手机公式与主观题作答"><br><sub>手机学习 · 与平板共用题库和规则</sub><br><br>
 <img src="./docs/screenshots/parent-review.png" width="280" alt="家长批改与 AI 设置"><br><sub>家长批改与 AI 设置</sub><br><br>
 <img src="./docs/screenshots/tv-quiz.png" width="780" alt="电视端答题">
-<br><sub>遥控器选题，答错直接显示正确答案</sub>
+<br><sub>遥控器选题，答完在下方显示对错、正确答案与解析</sub>
 
 <br><br>
 
 <img src="./docs/screenshots/tv-pair.png" width="780" alt="家长扫码连接">
-<br><sub>家长扫码，手机和电视同一个 WiFi 即可</sub>
+<br><sub>家长用手机扫码，同一个 WiFi 即可管理</sub>
 
 <br><br>
 

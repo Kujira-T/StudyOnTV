@@ -78,7 +78,7 @@ class OnboardingActivity : Activity() {
         fun add(icon: Int, title: String, description: String, optional: Boolean, enabled: () -> Boolean, action: () -> Unit) {
             val row = TvUi.row(this, icon, title, description, action)
             items.add(Item(row, enabled, optional))
-            list.addView(row.view, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+            list.addView(row.view, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(if (tv) 8 else 10) })
         }
         list.addView(TvUi.text(this, "权限", if (tv) 14f else 13f, p.text3, true), LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10); leftMargin = dp(4) })
         add(android.R.drawable.ic_menu_view, "悬浮窗", "到时间后在其他应用上方显示学习页", false, { GateOverlay.canDraw(this) }) {
@@ -94,6 +94,12 @@ class OnboardingActivity : Activity() {
             if (Build.VERSION.SDK_INT >= 23 && !ignoringBattery()) openSettings(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, true, Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
             else openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, true)
         }
+        add(android.R.drawable.ic_lock_lock, "防卸载", "孩子无法直接删除应用，家长可随时关闭", true, { UninstallGuard.active(this) }) {
+            if (UninstallGuard.active(this)) openSettings(Settings.ACTION_SECURITY_SETTINGS)
+            else try { GateService.openingSystemPage(); startActivity(UninstallGuard.requestIntent(this)) } catch (_: Exception) {
+                Toast.makeText(this, "这台设备不支持设备管理应用，无法开启防卸载", Toast.LENGTH_LONG).show()
+            }
+        }
         // 电视一般不显示通知，只在手机 / 平板上提示
         if (!tv && Build.VERSION.SDK_INT >= 33) add(android.R.drawable.ic_dialog_info, "通知", "显示“使用时间管理中”的常驻通知", true,
             { checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED }) {
@@ -102,10 +108,12 @@ class OnboardingActivity : Activity() {
         list.addView(TvUi.text(this, if (tv) "部分电视没有“电池优化”，可在系统“应用管理”里允许自启动。" else "部分手机还需要在系统设置里允许“自启动”或“后台活动”。", if (tv) 13f else 12f, p.text3),
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6); leftMargin = dp(4) })
 
-        val root: View = if (tv) {
+        // 电视和横屏平板（宽度 ≥ 840dp）用左右两栏，手机用单列
+        val wide = tv || resources.configuration.screenWidthDp >= 840
+        val root: View = if (wide) {
             LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(64), dp(36), dp(64), dp(36))
+                setPadding(dp(64), dp(24), dp(64), dp(24))
                 val left = LinearLayout(this@OnboardingActivity).apply { orientation = LinearLayout.VERTICAL; addView(intro); addView(actions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(28) }) }
                 addView(left, LinearLayout.LayoutParams(0, -2, 0.42f))
                 addView(ScrollView(this@OnboardingActivity).apply { isVerticalScrollBarEnabled = false; clipToPadding = false; setPadding(dp(12), dp(12), dp(12), dp(12)); addView(list) },

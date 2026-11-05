@@ -95,6 +95,13 @@ class GateService : Service() {
 
     private fun hideAll() { overlay.hide(); WatchAccessibilityService.hideGate() }
 
+    private val mediaTick = object : Runnable {
+        override fun run() {
+            if (hasGate()) MediaPause.enforce(this@GateService)
+            handler.postDelayed(this, 1000)
+        }
+    }
+
     private fun exempt(pkg: String, includeLauncher: Boolean = true): Boolean {
         if (pkg == packageName || pkg == "com.android.systemui" || pkg == "android" || pkg.contains("packageinstaller")) return true
         if (pkg.contains("permissioncontroller") || pkg.contains("inputmethod") || pkg.contains("keyboard")) return true
@@ -119,7 +126,9 @@ class GateService : Service() {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentIntent(pi).setOngoing(true).build()
         if (Build.VERSION.SDK_INT >= 34) startForeground(1001, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         else startForeground(1001, notification)
+        MediaPause.recover(this)
         handler.post(tick)
+        handler.postDelayed(mediaTick, 1000)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -134,7 +143,8 @@ class GateService : Service() {
     override fun onDestroy() {
         try { DeviceRuntime.learning.flushUsage() } catch (_: Exception) { }
         if (Prefs.onboarded(this)) scheduleRestart(this, 5000)
-        handler.removeCallbacks(tick)
+        handler.removeCallbacks(tick); handler.removeCallbacks(mediaTick)
+        MediaPause.release(this)
         overlay.destroy(); WatchAccessibilityService.hideGate(); updateAnchor(false)
         instance = null
         Prefs.setServiceRunning(this, false)

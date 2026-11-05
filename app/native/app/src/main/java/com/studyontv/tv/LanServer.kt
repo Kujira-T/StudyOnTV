@@ -203,7 +203,8 @@ class LanServer(
                 return json(out, 200, JSONObject().put("ok", true))
             }
             path == "/api/device" && method == "GET" -> return json(out, 200, JSONObject().put("name", Prefs.deviceName(context))
-                .put("version", BuildConfig.VERSION_NAME).put("flavor", BuildConfig.FLAVOR).put("ip", localIp() ?: "").put("port", boundPort))
+                .put("version", BuildConfig.VERSION_NAME).put("flavor", BuildConfig.FLAVOR).put("ip", localIp() ?: "").put("port", boundPort)
+                .put("uninstallProtected", UninstallGuard.active(context)))
             path == "/api/device" && method == "PUT" -> {
                 val name = JSONObject(body).optString("name").trim()
                 require(name.length in 1..32) { "设备名称需要 1–32 个字" }

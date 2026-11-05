@@ -13,6 +13,8 @@ This project is linked with and endorses the [LINUX DO](https://linux.do) commun
 - Keyboard input, system speech-to-text and handwriting images.
 - Round-based tasks, correct-answer streaks and unrestricted practice.
 - Configurable rewards for questions rated 1–5 stars.
+- Answer feedback below each question: right or wrong, the correct answer and the explanation; the child continues when ready. Parents can edit the encouragement phrases.
+- Remote-friendly TV interface with Netflix-style focus, dark and light modes, and system keyboard or voice input for typed answers. Videos behind the learning overlay are paused.
 - Optional spaced repetition prioritizes due questions and keeps learning progress across restarts.
 - Persistent extra-practice pool: mistakes add questions at a configurable threshold; correct extra-practice answers repay the pool. Restarting or changing the date does not erase the pool.
 
@@ -22,7 +24,9 @@ The controlled device hosts its own local HTTP panel. Parents connect over the s
 
 The panel separates rules, question banks, grading and usage records. APIs require authentication as well; the former six-digit access code and unauthenticated question-bank access have been removed.
 
-Subjective submissions can be graded by a parent, an authenticated Agent, or an optional OpenAI-compatible AI endpoint such as DeepSeek. Handwriting requires a vision-capable model or human review. Failed AI calls preserve the submission for later review. Enabling AI sends question and answer content to the configured provider.
+Updates no longer depend on a direct GitHub connection: the app falls back to jsDelivr and download mirrors, and verifies each APK by SHA-256 and signature.
+
+Subjective submissions can be graded by a parent, an authenticated Agent, or an optional OpenAI-compatible AI endpoint such as DeepSeek, Qwen, Zhipu, Kimi, SiliconFlow or a local Ollama server, with built-in presets, a connection test and model list fetching. Handwriting requires a vision-capable model or human review. Failed AI calls preserve the submission for later review. Enabling AI sends question and answer content to the configured provider.
 
 [Question-bank and grading API](./docs/ai-api.md) · [Gameplay rules](./docs/gameplay.md) · [Example question bank](./data/banks/open-play.json)
 
