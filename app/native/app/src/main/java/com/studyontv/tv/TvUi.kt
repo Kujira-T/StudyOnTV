@@ -30,11 +30,11 @@ object TvUi {
     private val DARK = Palette(0xFF141414.toInt(), 0xFF222222.toInt(), 0xFF2A2A2A.toInt(),
         0xFFE8E8E8.toInt(), 0xFFA3A3A3.toInt(), 0xFF6E6E6E.toInt(),
         0xFF2A2A2A.toInt(), 0xFFF0F0F0.toInt(), 0xFFB5B5B5.toInt(),
-        0xFF8FDB5C.toInt(), 0xFFD9A066.toInt())
+        0xFF7BC294.toInt(), 0xFFD9A066.toInt())
     private val LIGHT = Palette(0xFFF4F4F4.toInt(), 0xFFFFFFFF.toInt(), 0xFFE9E9E9.toInt(),
         0xFF1E1E1E.toInt(), 0xFF666666.toInt(), 0xFF999999.toInt(),
         0xFFFFFFFF.toInt(), 0xFF1E1E1E.toInt(), 0xFF666666.toInt(),
-        0xFF58A700.toInt(), 0xFFB0703A.toInt())
+        0xFF2F8A4E.toInt(), 0xFFB0703A.toInt())
 
     fun systemNight(context: Context): Boolean =
         (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES

@@ -763,44 +763,46 @@ html:not(.tv-device) .pair-steps li { color: var(--m-text-2); }
 html:not(.tv-device) .pair-steps li b, html:not(.tv-device) .pair-url { background: var(--m-surface); color: var(--m-text); }
 
 /* =====================================================================
- * 对错配色（参考多邻国：对 #58CC02 / 错 #FF4B4B，结果面板用对应的浅色底，按钮用结果色）
- * 深色模式使用略降亮度的同色系，避免刺眼
+ * 对错配色（设计稿方案 2「淡雅色调」）：面板是接近白色的淡绿 / 淡红，标题和按钮用中等饱和度的绿 / 红
  * ===================================================================== */
-html.tv-device .option.right { background: #1C2E12; -webkit-box-shadow: inset 0 0 0 .3rem #6CC93A; box-shadow: inset 0 0 0 .3rem #6CC93A; }
-html.tv-device .option.right .letter { background: #6CC93A; color: #0F1F07; }
-html.tv-device .option.wrong { background: #3A1D1F; -webkit-box-shadow: inset 0 0 0 .3rem #FF6B6B; box-shadow: inset 0 0 0 .3rem #FF6B6B; }
-html.tv-device .option.wrong .letter { background: #FF6B6B; color: #2A0A0B; }
-html.tv-device .feedback, html.tv-device .feedback.is-right { background: #1C2E12; -webkit-box-shadow: none; box-shadow: none; }
-html.tv-device .feedback.is-wrong { background: #3A1D1F; }
-html.tv-device .fb-icon { background: #6CC93A; color: #0F1F07; }
-html.tv-device .is-wrong .fb-icon { background: #FF6B6B; color: #2A0A0B; }
-html.tv-device .fb-title { color: #8FDB5C; }
-html.tv-device .is-wrong .fb-title { color: #FF8C8C; }
-html.tv-device .feedback .btn, html.tv-device .feedback.is-right .btn-primary { background: #6CC93A; color: #0F1F07; }
-html.tv-device .feedback.is-wrong .btn, html.tv-device .feedback .btn-danger { background: #FF6B6B; color: #2A0A0B; }
-html.tv-device .feedback .btn.focused { background: #6CC93A; color: #0F1F07; -webkit-box-shadow: 0 0 0 .3rem #1C2E12, 0 0 0 .55rem rgba(229,229,229,.72); box-shadow: 0 0 0 .3rem #1C2E12, 0 0 0 .55rem rgba(229,229,229,.72); }
-html.tv-device .feedback.is-wrong .btn.focused { background: #FF6B6B; color: #2A0A0B; -webkit-box-shadow: 0 0 0 .3rem #3A1D1F, 0 0 0 .55rem rgba(229,229,229,.72); box-shadow: 0 0 0 .3rem #3A1D1F, 0 0 0 .55rem rgba(229,229,229,.72); }
+html.tv-device .option.right { background: #1E2A23; color: #E8E8E8; -webkit-box-shadow: inset 0 0 0 .3rem #5DB07A; box-shadow: inset 0 0 0 .3rem #5DB07A; }
+html.tv-device .option.right .letter { background: #5DB07A; color: #FFFFFF; }
+html.tv-device .option.wrong { background: #2F2120; color: #E8E8E8; -webkit-box-shadow: inset 0 0 0 .3rem #E07870; box-shadow: inset 0 0 0 .3rem #E07870; }
+html.tv-device .option.wrong .letter { background: #E07870; color: #FFFFFF; }
+html.tv-device .feedback, html.tv-device .feedback.is-right { background: #1B2620; -webkit-box-shadow: none; box-shadow: none; }
+html.tv-device .feedback.is-wrong { background: #2C1D1C; }
+html.tv-device .fb-icon { background: #5DB07A; color: #FFFFFF; }
+html.tv-device .is-wrong .fb-icon { background: #E07870; color: #FFFFFF; }
+html.tv-device .fb-title { color: #7BC294; }
+html.tv-device .is-wrong .fb-title { color: #EB8E87; }
+html.tv-device .fb-answer { color: #E8E8E8; }
+html.tv-device .feedback .btn, html.tv-device .feedback.is-right .btn-primary, html.tv-device .feedback .btn.focused { background: #5DB07A; color: #FFFFFF; }
+html.tv-device .feedback.is-wrong .btn, html.tv-device .feedback .btn-danger, html.tv-device .feedback.is-wrong .btn.focused { background: #E07870; color: #FFFFFF; }
+html.tv-device .feedback .btn.focused { -webkit-box-shadow: 0 0 0 .3rem #1B2620, 0 0 0 .55rem rgba(229,229,229,.72); box-shadow: 0 0 0 .3rem #1B2620, 0 0 0 .55rem rgba(229,229,229,.72); }
+html.tv-device .feedback.is-wrong .btn.focused { -webkit-box-shadow: 0 0 0 .3rem #2C1D1C, 0 0 0 .55rem rgba(229,229,229,.72); box-shadow: 0 0 0 .3rem #2C1D1C, 0 0 0 .55rem rgba(229,229,229,.72); }
 
-html.tv-device[data-mode="light"] .option.right { background: #D7FFB8; color: #1E1E1E; -webkit-box-shadow: inset 0 0 0 .3rem #58CC02; box-shadow: inset 0 0 0 .3rem #58CC02; }
-html.tv-device[data-mode="light"] .option.right .letter { background: #58CC02; color: #FFFFFF; }
-html.tv-device[data-mode="light"] .option.wrong { background: #FFDFE0; color: #1E1E1E; -webkit-box-shadow: inset 0 0 0 .3rem #FF4B4B; box-shadow: inset 0 0 0 .3rem #FF4B4B; }
-html.tv-device[data-mode="light"] .option.wrong .letter { background: #FF4B4B; color: #FFFFFF; }
-html.tv-device[data-mode="light"] .feedback, html.tv-device[data-mode="light"] .feedback.is-right { background: #D7FFB8; }
-html.tv-device[data-mode="light"] .feedback.is-wrong { background: #FFDFE0; }
-html.tv-device[data-mode="light"] .fb-icon { background: #58CC02; color: #FFFFFF; }
-html.tv-device[data-mode="light"] .is-wrong .fb-icon { background: #FF4B4B; color: #FFFFFF; }
-html.tv-device[data-mode="light"] .fb-title { color: #58A700; }
-html.tv-device[data-mode="light"] .is-wrong .fb-title { color: #EA2B2B; }
-html.tv-device[data-mode="light"] .fb-answer { color: #3C3C3C; }
-html.tv-device[data-mode="light"] .feedback .btn, html.tv-device[data-mode="light"] .feedback .btn.focused { background: #58CC02; color: #FFFFFF; }
-html.tv-device[data-mode="light"] .feedback.is-wrong .btn, html.tv-device[data-mode="light"] .feedback.is-wrong .btn.focused { background: #FF4B4B; color: #FFFFFF; }
-html.tv-device[data-mode="light"] .feedback .btn.focused { -webkit-box-shadow: 0 0 0 .3rem #D7FFB8, 0 0 0 .55rem rgba(30,30,30,.5); box-shadow: 0 0 0 .3rem #D7FFB8, 0 0 0 .55rem rgba(30,30,30,.5); }
-html.tv-device[data-mode="light"] .feedback.is-wrong .btn.focused { -webkit-box-shadow: 0 0 0 .3rem #FFDFE0, 0 0 0 .55rem rgba(30,30,30,.5); box-shadow: 0 0 0 .3rem #FFDFE0, 0 0 0 .55rem rgba(30,30,30,.5); }
+html.tv-device[data-mode="light"] .option.right { background: #F3F9F4; color: #1E1E1E; -webkit-box-shadow: inset 0 0 0 .3rem #3B9A5A; box-shadow: inset 0 0 0 .3rem #3B9A5A; }
+html.tv-device[data-mode="light"] .option.right .letter { background: #3B9A5A; color: #FFFFFF; }
+html.tv-device[data-mode="light"] .option.wrong { background: #FDF3F2; color: #1E1E1E; -webkit-box-shadow: inset 0 0 0 .3rem #D2544C; box-shadow: inset 0 0 0 .3rem #D2544C; }
+html.tv-device[data-mode="light"] .option.wrong .letter { background: #D2544C; color: #FFFFFF; }
+html.tv-device[data-mode="light"] .feedback, html.tv-device[data-mode="light"] .feedback.is-right { background: #EEF6F0; }
+html.tv-device[data-mode="light"] .feedback.is-wrong { background: #FBEEEE; }
+html.tv-device[data-mode="light"] .fb-icon { background: #3B9A5A; color: #FFFFFF; }
+html.tv-device[data-mode="light"] .is-wrong .fb-icon { background: #D2544C; color: #FFFFFF; }
+html.tv-device[data-mode="light"] .fb-title { color: #2F8A4E; }
+html.tv-device[data-mode="light"] .is-wrong .fb-title { color: #C04840; }
+html.tv-device[data-mode="light"] .fb-answer { color: #1E1E1E; }
+html.tv-device[data-mode="light"] .feedback .btn, html.tv-device[data-mode="light"] .feedback .btn.focused { background: #3B9A5A; color: #FFFFFF; }
+html.tv-device[data-mode="light"] .feedback.is-wrong .btn, html.tv-device[data-mode="light"] .feedback.is-wrong .btn.focused { background: #D2544C; color: #FFFFFF; }
+html.tv-device[data-mode="light"] .feedback .btn.focused { -webkit-box-shadow: 0 0 0 .3rem #EEF6F0, 0 0 0 .55rem rgba(30,30,30,.5); box-shadow: 0 0 0 .3rem #EEF6F0, 0 0 0 .55rem rgba(30,30,30,.5); }
+html.tv-device[data-mode="light"] .feedback.is-wrong .btn.focused { -webkit-box-shadow: 0 0 0 .3rem #FBEEEE, 0 0 0 .55rem rgba(30,30,30,.5); box-shadow: 0 0 0 .3rem #FBEEEE, 0 0 0 .55rem rgba(30,30,30,.5); }
 
 /* 手机 / 平板 */
-html:not(.tv-device) { --m-ok: #58CC02; --m-ok-strong: #58A700; --m-ok-bg: #D7FFB8; --m-ok-ink: #FFFFFF; --m-bad: #FF4B4B; --m-bad-strong: #EA2B2B; --m-bad-bg: #FFDFE0; --m-bad-ink: #FFFFFF; }
-html:not(.tv-device)[data-mode="dark"] { --m-ok: #6CC93A; --m-ok-strong: #8FDB5C; --m-ok-bg: #1C2E12; --m-ok-ink: #0F1F07; --m-bad: #FF6B6B; --m-bad-strong: #FF8C8C; --m-bad-bg: #3A1D1F; --m-bad-ink: #2A0A0B; }
+html:not(.tv-device) { --m-ok: #3B9A5A; --m-ok-strong: #2F8A4E; --m-ok-bg: #EEF6F0; --m-ok-opt: #F3F9F4; --m-ok-ink: #FFFFFF; --m-bad: #D2544C; --m-bad-strong: #C04840; --m-bad-bg: #FBEEEE; --m-bad-opt: #FDF3F2; --m-bad-ink: #FFFFFF; }
+html:not(.tv-device)[data-mode="dark"] { --m-ok: #5DB07A; --m-ok-strong: #7BC294; --m-ok-bg: #1B2620; --m-ok-opt: #1E2A23; --m-ok-ink: #FFFFFF; --m-bad: #E07870; --m-bad-strong: #EB8E87; --m-bad-bg: #2C1D1C; --m-bad-opt: #2F2120; --m-bad-ink: #FFFFFF; }
+html:not(.tv-device) .option.right { background: var(--m-ok-opt); box-shadow: inset 0 0 0 2px var(--m-ok); border-color: transparent; }
 html:not(.tv-device) .option.right .letter { background: var(--m-ok); color: var(--m-ok-ink); }
+html:not(.tv-device) .option.wrong { background: var(--m-bad-opt); box-shadow: inset 0 0 0 2px var(--m-bad); border-color: transparent; }
 html:not(.tv-device) .option.wrong .letter { background: var(--m-bad); color: var(--m-bad-ink); }
 html:not(.tv-device) .feedback, html:not(.tv-device) .feedback.is-right { background: var(--m-ok-bg); box-shadow: none; }
 html:not(.tv-device) .feedback.is-wrong { background: var(--m-bad-bg); }
