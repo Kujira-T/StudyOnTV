@@ -215,7 +215,9 @@ class LearningEngine(private val store: LocalStore) {
             if (bank.getJSONObject(i).optString("id") != last) { question = bank.getJSONObject(i); break }
         }
         round.put("question", question).put("nonce", UUID.randomUUID().toString())
-        round.put("extra", if (round.optString("mode") == "practice") number("extra_pool") > 0 else round.optInt("answered") >= round.getInt("target"))
+        val extraEnabled = round.optJSONObject("rules")?.optBoolean("extraEnabled", true) ?: true
+        round.put("extra", if (round.optString("mode") == "practice") number("extra_pool") > 0
+            else extraEnabled && round.optInt("answered") >= round.getInt("target"))
     }
 
     private fun publicRound(round: JSONObject): JSONObject {
@@ -385,7 +387,8 @@ class LearningEngine(private val store: LocalStore) {
             val baseDone = if (mode == "streak") round.getInt("streak") >= round.getInt("target")
                 else round.getInt("answered") >= round.getInt("target")
             val passed = mode == "streak" || round.getInt("correct") >= ceil(round.getInt("target") * rules.getDouble("passRatio")).toInt()
-            val finished = mode != "practice" && baseDone && (!passed || number("extra_pool") == 0L)
+            val extraEnabled = rules.optBoolean("extraEnabled", true)
+            val finished = mode != "practice" && baseDone && (!passed || !extraEnabled || number("extra_pool") == 0L)
             val result = JSONObject().put("correct", correct).put("correctIndices", if (type == "text") JSONArray() else expected)
                 .put("answerText", if (type == "text") question.getJSONArray("answers").getString(0) else "")
                 .put("tip", question.optString("tip")).put("finished", finished).put("passed", finished && passed)
