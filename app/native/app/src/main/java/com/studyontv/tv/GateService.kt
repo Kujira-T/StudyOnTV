@@ -69,7 +69,7 @@ class GateService : Service() {
         val reason = status.getString("reason")
         // 解锁 / 任务完成后确保释放所有音频持有者，避免悬浮页收起后仍残留静音或音频焦点。
         if (!free && !hasGate() && reason.isEmpty() && DeviceRuntime.store.get("review_feedback").isEmpty() &&
-            DeviceRuntime.store.config().optString("playMode") != "practice") MediaPause.releaseAll(this)
+            DeviceRuntime.store.config().optString("playMode") != "practice" && MediaPause.active) MediaPause.releaseAll(this)
         val settingsBlocked = awake && monitoring && !free && pkg != null && isSettings(pkg) &&
             DeviceRuntime.store.config().optBoolean("blockSettingsDuringControl", true) && !AdminAuth.recentlyVerified()
         val gateReason = if (settingsBlocked) "settings" else reason
@@ -85,7 +85,10 @@ class GateService : Service() {
         if (snapshot != lastDiag) { lastDiag = snapshot; Diag.info("Gate", snapshot) }
         if ((protecting || settingsBlocked) && gateReason.isNotEmpty() && now - lastGate > 1800 && !hasGate()) {
             lastGate = now
-            val shown = WatchAccessibilityService.showGate(gateReason) || (canOverlay && overlay.show(gateReason))
+            // 斐讯 T1 等 SDK < 26 的超老盒子悬浮 WebView 易黑屏，走全屏 Activity 更稳定。
+            // Android 8+（SDK 26+）TYPE_APPLICATION_OVERLAY 稳定，统一走悬浮层，HOME 键不会关掉它。
+            val shown = if (Build.VERSION.SDK_INT < 26) false
+                else WatchAccessibilityService.showGate(gateReason) || (canOverlay && overlay.show(gateReason))
             if (shown) lastGateError = ""
             if (!shown) {
                 Diag.warn("Gate", "cannot show gate reason=$gateReason overlay=$canOverlay error=$lastGateError")
@@ -154,11 +157,35 @@ class GateService : Service() {
             val pi = PendingIntent.getActivity(this, 2, Intent(this, OnboardingActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, channelId) else Notification.Builder(this)
-            manager.notify(1003, builder.setContentTitle("悬浮窗权限被系统收回")
-                .setContentText("到时间可能无法自动弹出学习页，点此重新授权；开启无障碍可作为兜底")
+            manager.notify(1003, builder.setContentTitle("悬浮窗权限缺失，答题拦截可能已停止")
+                .setContentText("孩子可能已绕过时间限制，请点此重新授权悬浮窗")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentIntent(pi)
                 .setAutoCancel(true).setOnlyAlertOnce(true).build())
         } catch (e: Exception) { Diag.error("Gate", "cannot notify overlay revoked", e) }
+    }
+
+    private fun checkAccessibilityLost() {
+        // 如果无障碍曾经开启但现在不在服务列表（进程被杀后系统移除），发高优先级警告
+        val p = getSharedPreferences("sotv", MODE_PRIVATE)
+        val wasEnabled = p.getBoolean("accessibility_was_enabled", false)
+        val nowEnabled = WatchAccessibilityService.enabled(this)
+        p.edit().putBoolean("accessibility_was_enabled", nowEnabled).apply()
+        if (!wasEnabled || nowEnabled) return   // 未开过或现在正常，不报警
+        try {
+            val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            val channelId = "sotv_gate_alert"
+            if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(
+                NotificationChannel(channelId, "学习提醒", NotificationManager.IMPORTANCE_HIGH))
+            val pi = PendingIntent.getActivity(this, 5, Intent(this, OnboardingActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, channelId) else Notification.Builder(this)
+            manager.notify(1005, builder
+                .setContentTitle("无障碍权限缺失，答题拦截可能已停止")
+                .setContentText("孩子可能已绕过时间限制，请点此重新开启无障碍服务")
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setContentIntent(pi).setAutoCancel(true).setOnlyAlertOnce(false).build())
+            Diag.warn("Gate", "accessibility lost after restart, notified parent")
+        } catch (e: Exception) { Diag.error("Gate", "cannot notify accessibility lost", e) }
     }
 
     private fun notifyGateFallback(reason: String) {
@@ -207,6 +234,7 @@ class GateService : Service() {
         else startForeground(1001, notification)
         MediaPause.recover(this)
         checkOverlayPermission()
+        checkAccessibilityLost()   // 进程被杀后重启，检查无障碍是否被系统清除
         Diag.info("Service", "GateService started via=$startVia")
         Watchdog.serviceStarted(this, startVia)
         Watchdog.schedule(this)
