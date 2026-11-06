@@ -1,21 +1,15 @@
 package com.studyontv.tv
 
 import android.content.Context
+import android.os.Build
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * 版本检查。GitHub 在部分网络下不稳定，所以按顺序尝试多个来源，第一个成功的为准：
- *
- * 1. 家长在管理面板里填写的自定义地址（GitHub API 格式或 update.json 清单格式都可以）
- * 2. 蒲公英公开下载页（不携带账户 API Key）
- * 3. GitHub Releases API
- * 4. 仓库里的 update.json 清单：raw.githubusercontent → jsDelivr 三个 CDN 节点 → 加速镜像代理
- *
- * APK 下载同样会依次尝试“直连 → 加速镜像”。镜像是第三方服务，所以下载后会校验 SHA-256（若有）
- * 以及 APK 签名必须与当前安装的版本一致，见 [ApkInstaller]。
+ * 版本检查：只使用蒲公英应用内更新接口（appKey + 当前版本）。
+ * 不再访问 GitHub 或第三方镜像；蒲公英失败时由更新页引导用户手动下载。
  */
 object Updater {
     const val OWNER_REPO = "chadyi/StudyOnTV"
@@ -28,7 +22,7 @@ object Updater {
         "https://gcore.jsdelivr.net/gh/$OWNER_REPO@main/update.json"
     )
     /** 公益 GitHub 加速镜像，随时可能失效；家长可在管理面板中修改 */
-    val DEFAULT_MIRRORS = listOf("https://gh-proxy.com/", "https://ghproxy.net/", "https://ghfast.top/")
+    val DEFAULT_MIRRORS = emptyList<String>()
     private const val CACHE_MS = 6L * 60 * 60 * 1000
 
     data class Info(
@@ -50,29 +44,8 @@ object Updater {
     }
 
     /** 可用的 APK 下载地址：上次成功的线路优先，其次直连，再其次各个镜像 */
-    fun downloadCandidates(ctx: Context, url: String): List<Pair<String, String>> {
-        if (Pgyer.isPage(url)) {
-            val list = mutableListOf("蒲公英" to url)
-            // 蒲公英的下载会跳到 cos3.pgyer.com 的签名地址，部分地区会返回 403；
-            // 用同一版本的 GitHub Release 资源作为后备，仍然沿用现有签名与 SHA-256 校验。
-            val info = cachedInfo(ctx)
-            val version = info?.latest?.trim()?.removePrefix("v").orEmpty()
-            if (info?.source == "蒲公英" && Regex("[0-9]+([.][0-9A-Za-z]+)+").matches(version)) {
-                val asset = "StudyOnTV-" + (if (BuildConfig.FLAVOR == "tv") "Android-TV" else "Mobile") + "-v" + version + ".apk"
-                val github = "https://github.com/chadyi/StudyOnTV/releases/download/v" + version + "/" + asset
-                list.add("直连 GitHub" to github)
-                mirrors(ctx).forEach { list.add(URL(it).host to it + github) }
-            }
-            val last = Prefs.updateLastSource(ctx)
-            return list.sortedBy { if (it.first == last) 0 else 1 }
-        }
-        val list = mutableListOf((if (URL(url).host.endsWith("github.com")) "直连 GitHub" else URL(url).host) to url)
-        if (url.startsWith("https://github.com/") || url.startsWith("https://objects.githubusercontent.com/")) {
-            mirrors(ctx).forEach { list.add(URL(it).host to it + url) }
-        }
-        val last = Prefs.updateLastSource(ctx)
-        return list.sortedBy { if (it.first == last) 0 else 1 }
-    }
+    fun downloadCandidates(ctx: Context, url: String): List<Pair<String, String>> =
+        listOf("蒲公英" to url)
 
     fun check(ctx: Context, forceRefresh: Boolean = false, onResult: (Info?) -> Unit) {
         val cachedAt = Prefs.updateCheckedAt(ctx)
@@ -98,30 +71,19 @@ object Updater {
     fun checkNow(ctx: Context): Pair<Info?, JSONArray> {
         val log = JSONArray()
         val current = currentVersion(ctx)
-        val sources = mutableListOf<Pair<String, String>>()
-        api(ctx).takeIf { it.startsWith("https://") }?.let { sources.add("自定义地址" to it) }
-        sources.add("蒲公英" to Pgyer.pageUrl)
-        sources.add("GitHub API" to GITHUB_API)
-        MANIFEST_URLS.forEach { sources.add(URL(it).host to it) }
-        mirrors(ctx).forEach { sources.add(URL(it).host to it + MANIFEST_URLS[0]) }
+        val started = System.currentTimeMillis()
         var info: Info? = null
-        for ((name, endpoint) in sources) {
-            val started = System.currentTimeMillis()
-            try {
-                val parsed = if (name == "蒲公英") Pgyer.info(current)
-                    else fetch(endpoint)?.let { parse(it, current, name) }
-                log.put(JSONObject().put("source", name).put("ok", parsed != null).put("ms", System.currentTimeMillis() - started)
-                    .put("message", if (parsed == null) "没有找到适用于本设备的安装包" else "v" + parsed.latest))
-                if (parsed != null) { info = parsed; break }
-            } catch (e: Exception) {
-                log.put(JSONObject().put("source", name).put("ok", false).put("ms", System.currentTimeMillis() - started)
-                    .put("message", e.message?.take(120) ?: e.javaClass.simpleName))
-            }
+        try {
+            info = Pgyer.info(ctx, current, currentVersionCode(ctx))
+            log.put(JSONObject().put("source", "蒲公英").put("ok", info != null).put("ms", System.currentTimeMillis() - started)
+                .put("message", if (info == null) "当前已是最新版本" else "v" + info.latest))
+        } catch (e: Exception) {
+            Diag.error("Update", "Pgyer check failed", e)
+            log.put(JSONObject().put("source", "蒲公英").put("ok", false).put("ms", System.currentTimeMillis() - started)
+                .put("message", e.message?.take(160) ?: e.javaClass.simpleName))
         }
-        if (info != null) {
-            Prefs.setUpdateInfo(ctx, toJson(info).toString())
-            Prefs.setUpdateCheckedAt(ctx, System.currentTimeMillis())
-        }
+        Prefs.setUpdateInfo(ctx, info?.let { toJson(it).toString() } ?: "")
+        Prefs.setUpdateCheckedAt(ctx, System.currentTimeMillis())
         Prefs.setUpdateLog(ctx, JSONObject().put("at", System.currentTimeMillis()).put("items", log).toString())
         return info to log
     }
@@ -207,6 +169,11 @@ object Updater {
 
     fun currentVersion(ctx: Context): String =
         try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "0.0.0" } catch (e: Exception) { "0.0.0" }
+
+    fun currentVersionCode(ctx: Context): Int = try {
+        val info = ctx.packageManager.getPackageInfo(ctx.packageName, 0)
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else @Suppress("DEPRECATION") info.versionCode
+    } catch (_: Exception) { 0 }
 
     fun newerThanCurrent(ctx: Context, info: Info?): Info? =
         if (info != null && isNewer(info.latest, currentVersion(ctx))) info else null

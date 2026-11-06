@@ -79,6 +79,14 @@ class UpdateActivity : Activity() {
         go.textSize = 20f
         buttons.addView(go, LinearLayout.LayoutParams(dp(if (DeviceBridge.isTv(this)) 260 else 180), dp(58)))
         if (!force) buttons.addView(TvUi.button(this, "以后再说") { finish() }, LinearLayout.LayoutParams(dp(if (DeviceBridge.isTv(this)) 180 else 130), dp(58)).apply { leftMargin = dp(16) })
+        buttons.addView(TvUi.button(this, "手动下载", false) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(Pgyer.pageUrl)))
+            } catch (e: Exception) {
+                status.text = "这台设备没有可用浏览器，请用手机或电脑访问 " + Pgyer.pageUrl
+                Diag.error("Update", "cannot open manual download page", e)
+            }
+        }, LinearLayout.LayoutParams(dp(if (DeviceBridge.isTv(this)) 180 else 130), dp(58)).apply { leftMargin = dp(16) })
         root.addView(buttons)
 
         status = label("下载后覆盖安装即可，题库和设置不会丢", 12f, palette.text3, 10)
@@ -135,7 +143,7 @@ class UpdateActivity : Activity() {
                 } else {
                     button.isEnabled = true
                     button.text = "下载失败，重试"
-                    status.text = ApkInstaller.lastError.ifEmpty { "所有下载线路都失败了，请检查网络后重试" }
+                    status.text = (ApkInstaller.lastError.ifEmpty { "下载失败，请检查网络" }) + "。也可以点「手动下载」到蒲公英安装。"
                 }
                 button.requestFocus()
             }

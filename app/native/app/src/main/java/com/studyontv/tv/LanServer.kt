@@ -139,6 +139,7 @@ class LanServer(
             }
         }
 
+        if (method != "GET") Diag.info("HTTP", "$method $path")
         try {
         when {
             path == "/api/hello" && method == "GET" -> {
@@ -268,6 +269,12 @@ class LanServer(
                 IntegrationAuth.revoke(context)
                 return json(out, 200, IntegrationAuth.state(context))
             }
+            path == "/api/logs" && method == "GET" -> return json(out, 200, JSONObject().put("lines", Diag.read(context, q["limit"]?.toIntOrNull()?.coerceIn(50, 3000) ?: 800, q["q"] ?: "")))
+            path == "/api/logs" && method == "DELETE" -> { Diag.clear(context); return json(out, 200, JSONObject().put("ok", true)) }
+            path == "/api/logs/export" && method == "GET" -> {
+                val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date())
+                return reply(out, 200, "application/zip", Diag.export(context), mapOf("Content-Disposition" to "attachment; filename=\"studyontv-logs-$stamp.zip\""))
+            }
             path == "/api/device" && method == "GET" -> return json(out, 200, JSONObject().put("name", Prefs.deviceName(context))
                 .put("version", BuildConfig.VERSION_NAME).put("flavor", BuildConfig.FLAVOR).put("ip", localIp() ?: "").put("port", boundPort)
                 .put("uninstallProtected", UninstallGuard.active(context)).put("autostart", Watchdog.report(context)).put("monitor", GateService.diagnostics(context)))
@@ -300,6 +307,7 @@ class LanServer(
             path == "/api/quiz/answer" && method == "POST" -> {
                 if (!deviceAccess) return json(out, 403, err("device_only"))
                 val result = DeviceRuntime.learning.answer(JSONObject(body))
+                Diag.info("Quiz", "answer correct=${result.optBoolean("correct")} finished=${result.optBoolean("finished")} pending=${result.optBoolean("pending")} reward=${result.optDouble("rewardMinutes", 0.0)}")
                 if (result.optBoolean("pending")) GradingService.enqueue(store, DeviceRuntime.learning, result.getString("reviewId"))
                 return json(out, 200, result)
             }
@@ -312,6 +320,7 @@ class LanServer(
             }
         }
         } catch (e: Exception) {
+            Diag.error("HTTP", "$method $path failed", e)
             return json(out, 400, JSONObject().put("error", "bad_request").put("message", e.message ?: "请求格式错误"))
         }
 

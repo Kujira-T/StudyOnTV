@@ -38,7 +38,7 @@ object MediaPause {
     fun pause(context: Context) {
         if (owners.contains(context)) return
         val audio = audio(context) ?: return
-        if (owners.isNotEmpty()) { owners.add(context); return }
+        if (owners.isNotEmpty()) { owners.add(context); Diag.info("Audio", "add owner (${owners.size}), already active"); return }
         recover(context)
         try {
             originalVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -46,6 +46,7 @@ object MediaPause {
             attempts = 0
             lastKey = SystemClock.elapsedRealtime()
             owners.add(context)
+            Diag.info("Audio", "pause start volume=$originalVolume muted=$originalMuted api=${Build.VERSION.SDK_INT} music=${audio.isMusicActive}")
             if (audio.isMusicActive) { sendPause(audio); attempts = 1 }
             holding = audio.requestAudioFocus(listener, AudioManager.STREAM_MUSIC,
                 AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
@@ -72,6 +73,7 @@ object MediaPause {
                     .putBoolean("media_original_muted", originalMuted).commit()) return
             muted = true
             setMuted(audio, true)
+            Diag.warn("Audio", "enforce: player ignored pause, muted music stream (original volume=$originalVolume, originally muted=$originalMuted)")
         } catch (e: Exception) { android.util.Log.w("StudyOnTV", "Enforce pause failed", e) }
     }
 
@@ -93,8 +95,11 @@ object MediaPause {
             // A previously quiet stream was read as volume zero, which remains quiet after release.
             if (Build.VERSION.SDK_INT < 23) setMuted(audio, false) else setMuted(audio, wasMuted)
             state.edit().remove("media_muted").remove("media_original_volume").remove("media_original_muted").commit()
+            Diag.info("Audio", "restored volume=$savedVolume wasMuted=$wasMuted holding=$holding")
+            true
         } catch (e: Exception) {
             android.util.Log.w("StudyOnTV", "Restore media volume failed", e)
+            Diag.error("Audio", "restore failed", e)
             false
         }
     }
@@ -112,6 +117,7 @@ object MediaPause {
         owners.remove(context)
         if (active) return
         if (restore(context)) muted = false
+        Diag.info("Audio", "release owner, active=$active muted=$muted")
         try { if (holding) audio(context)?.abandonAudioFocus(listener) }
         catch (e: Exception) { android.util.Log.w("StudyOnTV", "Release audio focus failed", e) }
         holding = false

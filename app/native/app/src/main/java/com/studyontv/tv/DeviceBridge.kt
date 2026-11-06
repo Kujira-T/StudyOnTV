@@ -56,8 +56,17 @@ open class DeviceBridge(protected val activity: Activity, private val connection
         if (status.getString("reason").isNotEmpty() || (status.optLong("remainingSeconds") <= 0 && !status.optBoolean("free"))) return
         activity.runOnUiThread {
             GateService.hideGates()
-            activity.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            if (activity is GateActivity) activity.finish() else activity.moveTaskToBack(true)
+            // 个别电视（如小米）把 HOME 指向带私有权限的桌面，直接 startActivity 会抛 SecurityException。
+            // 失败时退回隐藏本任务，绝不能因为回桌面把主进程带崩。
+            val openedHome = try {
+                activity.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                true
+            } catch (e: Exception) {
+                Diag.error("UI", "HOME intent rejected, fallback to moveTaskToBack", e)
+                false
+            }
+            if (!openedHome) activity.moveTaskToBack(true)
+            if (activity is GateActivity) activity.finish()
         }
     }
 

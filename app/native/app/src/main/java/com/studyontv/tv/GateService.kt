@@ -27,6 +27,7 @@ class GateService : Service() {
     private var lastGate = 0L
     private var lastFallback = 0L
     private var lastGateError = ""
+    private var lastDiag = ""
     @Volatile private var settingsUntil = 0L
     private val systemSettingsPackage by lazy {
         packageManager.resolveActivity(Intent(android.provider.Settings.ACTION_SETTINGS), 0)?.activityInfo?.packageName
@@ -80,11 +81,14 @@ class GateService : Service() {
         }
         wasUsing = active && !free && reason.isEmpty() && !feedbackVisible
         if (!awake || !monitoring || (!settingsBlocked && ((reason.isEmpty() && !feedbackVisible) || (pkg != null && exempt(pkg, false))))) hideAll()
+        val snapshot = "reason=$gateReason free=$free awake=$awake monitoring=$monitoring pkg=$pkg active=$active gate=${hasGate()} overlay=$canOverlay"
+        if (snapshot != lastDiag) { lastDiag = snapshot; Diag.info("Gate", snapshot) }
         if ((protecting || settingsBlocked) && gateReason.isNotEmpty() && now - lastGate > 1800 && !hasGate()) {
             lastGate = now
             val shown = WatchAccessibilityService.showGate(gateReason) || (canOverlay && overlay.show(gateReason))
             if (shown) lastGateError = ""
             if (!shown) {
+                Diag.warn("Gate", "cannot show gate reason=$gateReason overlay=$canOverlay error=$lastGateError")
                 if (canOverlay && overlay.lastError.isNotEmpty()) lastGateError = overlay.lastError
                 // Android 10+ 默认限制后台启动 Activity，但有悬浮窗权限时属于系统豁免；
                 // 部分电视会拒绝 overlay，这里再尝试全屏学习页，并留一条可点击的通知。
@@ -177,6 +181,7 @@ class GateService : Service() {
         if (Build.VERSION.SDK_INT >= 34) startForeground(1001, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         else startForeground(1001, notification)
         MediaPause.recover(this)
+        Diag.info("Service", "GateService started via=$startVia")
         Watchdog.serviceStarted(this, startVia)
         Watchdog.schedule(this)
         handler.post(tick)
@@ -200,6 +205,7 @@ class GateService : Service() {
         overlay.destroy(); WatchAccessibilityService.hideGate(); updateAnchor(false)
         instance = null
         Prefs.setServiceRunning(this, false)
+        Diag.info("Service", "GateService destroyed")
         super.onDestroy()
     }
 
