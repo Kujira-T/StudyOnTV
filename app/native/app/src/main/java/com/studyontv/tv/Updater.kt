@@ -51,7 +51,21 @@ object Updater {
 
     /** 可用的 APK 下载地址：上次成功的线路优先，其次直连，再其次各个镜像 */
     fun downloadCandidates(ctx: Context, url: String): List<Pair<String, String>> {
-        if (Pgyer.isPage(url)) return listOf("蒲公英" to url)
+        if (Pgyer.isPage(url)) {
+            val list = mutableListOf("蒲公英" to url)
+            // 蒲公英的下载会跳到 cos3.pgyer.com 的签名地址，部分地区会返回 403；
+            // 用同一版本的 GitHub Release 资源作为后备，仍然沿用现有签名与 SHA-256 校验。
+            val info = cachedInfo(ctx)
+            val version = info?.latest?.trim()?.removePrefix("v").orEmpty()
+            if (info?.source == "蒲公英" && Regex("[0-9]+([.][0-9A-Za-z]+)+").matches(version)) {
+                val asset = "StudyOnTV-" + (if (BuildConfig.FLAVOR == "tv") "Android-TV" else "Mobile") + "-v" + version + ".apk"
+                val github = "https://github.com/chadyi/StudyOnTV/releases/download/v" + version + "/" + asset
+                list.add("直连 GitHub" to github)
+                mirrors(ctx).forEach { list.add(URL(it).host to it + github) }
+            }
+            val last = Prefs.updateLastSource(ctx)
+            return list.sortedBy { if (it.first == last) 0 else 1 }
+        }
         val list = mutableListOf((if (URL(url).host.endsWith("github.com")) "直连 GitHub" else URL(url).host) to url)
         if (url.startsWith("https://github.com/") || url.startsWith("https://objects.githubusercontent.com/")) {
             mirrors(ctx).forEach { list.add(URL(it).host to it + url) }
