@@ -66,6 +66,9 @@ class GateService : Service() {
         val active = awake && monitoring && if (pkg == null) canOverlay else !exempt(pkg)
         val protecting = awake && monitoring && if (pkg == null) canOverlay else !exempt(pkg, false)
         val reason = status.getString("reason")
+        // 解锁 / 任务完成后确保释放所有音频持有者，避免悬浮页收起后仍残留静音或音频焦点。
+        if (!free && !hasGate() && reason.isEmpty() && DeviceRuntime.store.get("review_feedback").isEmpty() &&
+            DeviceRuntime.store.config().optString("playMode") != "practice") MediaPause.releaseAll(this)
         val settingsBlocked = awake && monitoring && !free && pkg != null && isSettings(pkg) &&
             DeviceRuntime.store.config().optBoolean("blockSettingsDuringControl", true) && !AdminAuth.recentlyVerified()
         val gateReason = if (settingsBlocked) "settings" else reason

@@ -82,9 +82,12 @@ object MediaPause {
         val audio = audio(context) ?: return false
         return try {
             val wasMuted = state.getBoolean("media_original_muted", false)
-            if ((!wasMuted || Build.VERSION.SDK_INT < 23) && state.contains("media_original_volume")) {
+            // 电视 / HDMI 设备可能使用固定音量，系统读到的媒体音量是 0 但实际有声音。
+            // 这种情况下不要把音量写回 0，只解除我们自己的静音即可，否则解锁后会一直无声。
+            val savedVolume = state.getInt("media_original_volume", 0)
+            if ((!wasMuted || Build.VERSION.SDK_INT < 23) && state.contains("media_original_volume") && savedVolume > 0) {
                 audio.setStreamVolume(AudioManager.STREAM_MUSIC,
-                    state.getInt("media_original_volume", 0).coerceIn(0, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0)
+                    savedVolume.coerceIn(0, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0)
             }
             // Before API 23 mute calls are counted per client: release our request once.
             // A previously quiet stream was read as volume zero, which remains quiet after release.
