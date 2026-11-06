@@ -351,7 +351,7 @@
     return false;
   }
   function activate(el) {
-    if (!el) el = document.querySelector('.screen.active .focused');
+    if (!el) el = document.querySelector('.screen.active .focused') || document.querySelector('.focused');
     if (!el) return;
     if (el.hasAttribute('data-opt')) return choose(+el.getAttribute('data-opt'));
     var action = el.getAttribute('data-action');
