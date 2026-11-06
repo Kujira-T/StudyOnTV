@@ -46,10 +46,16 @@ object AnswerInput {
         Handler(Looper.getMainLooper()).post {
             val view = target.get()
             view?.visibility = View.VISIBLE
-            if (result != null) view?.evaluateJavascript("window.SOTV_INPUT&&SOTV_INPUT(" + result.toString() + ")", null)
             active = false
             requestId = ""
             target.clear()
+            if (result != null) {
+                // 延迟 120ms 让 WebView visibility 恢复后 JS 上下文稳定，
+                // 避免部分厂商 WebView 在切换过程中 state.round 短暂为 null 导致回调被丢弃
+                Handler(Looper.getMainLooper()).postDelayed({
+                    view?.evaluateJavascript("window.SOTV_INPUT&&SOTV_INPUT(" + result.toString() + ")", null)
+                }, 120)
+            }
         }
     }
 }

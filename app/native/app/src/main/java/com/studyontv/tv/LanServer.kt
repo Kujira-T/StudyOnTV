@@ -345,6 +345,7 @@ class LanServer(
         val (assetPath, contentType) = when {
             path == "/" || path == "/index.html" -> "web/index.html" to "text/html; charset=utf-8"
             path.startsWith("/admin/assets/") -> "admin" + path.removePrefix("/admin") to mime(path)
+            path == "/admin" -> return reply(out, 301, null, null, mapOf("Location" to "/admin/"))
             path.startsWith("/admin") -> "admin/index.html" to "text/html; charset=utf-8"
             path.startsWith("/assets/") -> "web" + path to mime(path)
             else -> "web/index.html" to "text/html; charset=utf-8"
@@ -411,7 +412,7 @@ class LanServer(
 
     private fun reason(code: Int) = when (code) {
         200 -> "OK"; 204 -> "No Content"; 304 -> "Not Modified"; 400 -> "Bad Request"; 401 -> "Unauthorized"; 403 -> "Forbidden"
-        404 -> "Not Found"; 405 -> "Method Not Allowed"; else -> "OK"
+        301 -> "Moved Permanently"; 404 -> "Not Found"; 405 -> "Method Not Allowed"; else -> "OK"
     }
 
     

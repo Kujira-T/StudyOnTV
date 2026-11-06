@@ -98,7 +98,8 @@
   }
   function renderQuestion() {
     var round = state.round, item = round.question;
-    if (!state.draft || state.draft.nonce !== round.nonce) state.draft = { nonce: round.nonce, text: '', drawing: '' };
+    if (window._pendingInput) { state.draft = { nonce: round.nonce, text: window._pendingInput.text || '', drawing: window._pendingInput.drawing || '' }; window._pendingInput = null; }
+    else if (!state.draft || state.draft.nonce !== round.nonce) state.draft = { nonce: round.nonce, text: '', drawing: '' };
     state.selected = [];
     $('qText').textContent = item.q;
     $('qIndex').textContent = round.mode === 'streak' ? round.streak : round.mode === 'practice' ? round.answered + 1 : Math.min(round.answered + 1, round.target);
@@ -460,8 +461,9 @@
     }, 2000);
   }
   window.SOTV_INPUT = function (result) {
-    if (!state.round) return;
+    if (!state.round) { window._pendingInput = result; return; }
     state.draft = { nonce: state.round.nonce, text: result.text || '', drawing: result.drawing || '' };
+    window._pendingInput = null;
     renderQuestion();
     // 遥控器输入完成后直接把焦点放到“提交答案”
     if (isTv() && state.draft.text) { var list = focusables(); for (var i = 0; i < list.length; i++) if (list[i].getAttribute('data-action') === 'submit') { setFocus(i); break; } }
