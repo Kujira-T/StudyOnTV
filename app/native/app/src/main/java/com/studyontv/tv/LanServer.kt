@@ -284,6 +284,16 @@ class LanServer(
                 if (enabled) BuglyInit.initWithConsent(context) else BuglyInit.revoke(context)
                 return json(out, 200, JSONObject().put("ok", true).put("buglyConsent", Prefs.buglyConsent(context)))
             }
+            path == "/api/device/uninstall-guard" && method == "DELETE" -> {
+                // 家长在网页端可以关闭防卸载（安全：需要家长登录 token）
+                return try {
+                    val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+                    dpm.removeActiveAdmin(UninstallGuard.component(context))
+                    json(out, 200, JSONObject().put("ok", true).put("uninstallProtected", false))
+                } catch (e: Exception) {
+                    json(out, 500, err(e.message ?: "failed"))
+                }
+            }
             path == "/api/device" && method == "PUT" -> {
                 val name = JSONObject(body).optString("name").trim()
                 require(name.length in 1..32) { "设备名称需要 1–32 个字" }
