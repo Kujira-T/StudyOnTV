@@ -93,7 +93,12 @@ object MediaPause {
             }
             // Before API 23 mute calls are counted per client: release our request once.
             // A previously quiet stream was read as volume zero, which remains quiet after release.
-            if (Build.VERSION.SDK_INT < 23) setMuted(audio, false) else setMuted(audio, wasMuted)
+            if (Build.VERSION.SDK_INT < 23) setMuted(audio, false)
+            else {
+                setMuted(audio, wasMuted)
+                // 部分电视（小米等）对 ADJUST_UNMUTE 的响应不稳定，额外调用一次 setStreamMute(false) 兜底。
+                if (!wasMuted) try { audio.setStreamMute(AudioManager.STREAM_MUSIC, false) } catch (_: Exception) { }
+            }
             state.edit().remove("media_muted").remove("media_original_volume").remove("media_original_muted").commit()
             Diag.info("Audio", "restored volume=$savedVolume wasMuted=$wasMuted holding=$holding")
             true
@@ -114,10 +119,10 @@ object MediaPause {
 
     @Suppress("DEPRECATION")
     fun release(context: Context) {
-        owners.remove(context)
+        val removed = owners.remove(context)
         if (active) return
+        if (removed) Diag.info("Audio", "release owner, active=false muted=$muted")
         if (restore(context)) muted = false
-        Diag.info("Audio", "release owner, active=$active muted=$muted")
         try { if (holding) audio(context)?.abandonAudioFocus(listener) }
         catch (e: Exception) { android.util.Log.w("StudyOnTV", "Release audio focus failed", e) }
         holding = false
