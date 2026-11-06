@@ -282,14 +282,16 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
         return next
     }
 
-    fun questions(subject: String? = null, level: String? = null, limit: Int = 200, spaced: Boolean = false): JSONArray {
-        val where = StringBuilder("enabled=1")
+    fun questions(subject: String? = null, level: String? = null, limit: Int = 200, spaced: Boolean = false,
+                   enabledOnly: Boolean = true, sortBy: String = "random"): JSONArray {
+        val where = StringBuilder(if (enabledOnly) "enabled=1" else "1=1")
         val args = mutableListOf<String>()
         if (!subject.isNullOrEmpty()) { where.append(" AND subject=?"); args.add(subject) }
         if (!level.isNullOrEmpty()) { where.append(" AND level=?"); args.add(level) }
         val out = JSONArray()
         val source = if (spaced) "questions LEFT JOIN question_progress progress ON questions.id=progress.qid" else "questions"
-        val order = if (spaced) "CASE WHEN progress.due_at<=${System.currentTimeMillis()} THEN 0 WHEN progress.qid IS NULL THEN 1 ELSE 2 END, progress.due_at ASC, RANDOM()" else "RANDOM()"
+        val order = if (spaced) "CASE WHEN progress.due_at<=${System.currentTimeMillis()} THEN 0 WHEN progress.qid IS NULL THEN 1 ELSE 2 END, progress.due_at ASC, RANDOM()"
+            else when (sortBy) { "newest" -> "questions.created_at DESC, questions.rowid DESC"; "oldest" -> "questions.created_at ASC, questions.rowid ASC"; else -> "RANDOM()" }
         readableDatabase.rawQuery("SELECT questions.* FROM $source WHERE $where ORDER BY $order LIMIT ${limit.coerceIn(1, 5000)}", args.toTypedArray()).use { c ->
             while (c.moveToNext()) {
                 val details = c.getString(c.getColumnIndexOrThrow("details"))
@@ -369,6 +371,18 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
     }
 
     fun deleteQuestion(id: String): Boolean = writableDatabase.delete("questions", "id=?", arrayOf(id)) > 0
+
+    fun setEnabled(ids: List<String>, enabled: Boolean): Int {
+        val db = writableDatabase; var count = 0
+        db.beginTransaction()
+        try {
+            ids.forEach { id ->
+                count += db.update("questions", android.content.ContentValues().apply { put("enabled", if (enabled) 1 else 0) }, "id=?", arrayOf(id))
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+        return count
+    }
 
     fun logEvent(type: String, payload: JSONObject) {
         writableDatabase.execSQL("INSERT INTO events(type,payload,ts) VALUES(?,?,?)", arrayOf(type, payload.toString(), System.currentTimeMillis()))
