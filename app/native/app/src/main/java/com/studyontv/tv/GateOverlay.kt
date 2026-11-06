@@ -35,17 +35,17 @@ class GateOverlay(
         handler.removeCallbacks(release); releaseScheduled = false
         val reused = web != null
         val page = if (reason == "timeup") "quiz" else "lock?reason=$reason"
+        val url = Prefs.localBase(context) + "#/$page"
         val view = web ?: WebShell(context).create("about:blank").also { created ->
             created.addJavascriptInterface(Bridge(), "SOTVNative")
             created.setOnKeyListener { _, _, event -> remote.handle(created, event) }
+            // 老电视（斐讯 T1 等）在 WebView 还没 attach 时就开始加载，挂到悬浮层后容易一直是黑屏。
+            // 先创建空的 WebView，addView 成功后再 loadUrl；必要时用软件层兜底。
+            if (Build.VERSION.SDK_INT < 26) created.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
             web = created
-            currentReason = reason
-            created.loadUrl(Prefs.localBase(context) + "#/$page")
         }
-        if (reason != currentReason) {
-            currentReason = reason
-            view.loadUrl(Prefs.localBase(context) + "#/$page")
-        } else if (reused) view.evaluateJavascript("window.SOTV_RESUME&&SOTV_RESUME()", null)
+        val needLoad = !reused || reason != currentReason
+        currentReason = reason
         val params = WindowManager.LayoutParams(-1, -1, windowType,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.OPAQUE)
         params.gravity = Gravity.TOP or Gravity.START
@@ -55,6 +55,10 @@ class GateOverlay(
             manager.addView(view, params)
             attached = true
             lastError = ""
+            if (needLoad) {
+                view.loadUrl(url)
+                view.postDelayed({ try { view.invalidate(); view.requestLayout() } catch (_: Exception) { } }, 350)
+            } else view.evaluateJavascript("window.SOTV_RESUME&&SOTV_RESUME()", null)
             view.requestFocus()
             MediaPause.pause(context)
             true
