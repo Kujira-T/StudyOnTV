@@ -191,8 +191,24 @@ class LearningEngine(private val store: LocalStore) {
     private fun active(): JSONObject? = store.get("active_round").takeIf { it.isNotEmpty() }?.let { JSONObject(it) }
 
     private fun nextQuestion(round: JSONObject) {
-        val bank = store.questions(limit = 2, spaced = store.config().optBoolean("spacedRepetitionEnabled"))
-        require(bank.length() > 0) { "题库为空，请由家长添加题目" }
+        val config = store.config()
+        fun scope(key: String): List<String> {
+            val array = config.optJSONArray(key) ?: return emptyList()
+            return (0 until array.length()).map { array.optString(it) }.filter { it.isNotEmpty() }
+        }
+        val subjects = scope("quizSubjects")
+        val levels = scope("quizLevels")
+        val all = store.questions(limit = 5000, spaced = config.optBoolean("spacedRepetitionEnabled"))
+        val bank = JSONArray()
+        for (i in 0 until all.length()) {
+            val item = all.getJSONObject(i)
+            if (subjects.isNotEmpty() && item.optString("subject") !in subjects) continue
+            if (levels.isNotEmpty() && item.optString("level") !in levels) continue
+            bank.put(item)
+        }
+        require(bank.length() > 0) {
+            if (subjects.isNotEmpty() || levels.isNotEmpty()) "当前答题范围没有题目，请检查题库的科目 / 年级或调整答题范围" else "题库为空，请由家长添加题目"
+        }
         val last = round.optJSONObject("question")?.optString("id")
         var question = bank.getJSONObject(0)
         for (i in 0 until bank.length()) {

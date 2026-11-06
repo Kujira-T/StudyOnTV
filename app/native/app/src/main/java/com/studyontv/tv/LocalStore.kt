@@ -139,6 +139,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             .put("praisePhrases", JSONArray(DEFAULT_PRAISE)).put("encouragePhrases", JSONArray(DEFAULT_ENCOURAGE))
             .put("autoNextSeconds", 0).put("scheduleMode", "allow").put("blockSettingsDuringControl", true).put("theme", if (BuildConfig.FLAVOR == "tv") "dark" else "system")
             .put("holidayMode", "sunday")
+            .put("quizSubjects", JSONArray()).put("quizLevels", JSONArray())
             .put("version", 1)
         val saved = try { JSONObject(get("config", "{}")) } catch (e: Exception) { JSONObject() }
         saved.keys().forEach { defaults.put(it, saved.get(it)) }
@@ -160,6 +161,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             } else weekendDefault()
         defaults.put("weekSlots", migrated)
         if (defaults.optString("holidayMode") !in listOf("sunday", "normal")) defaults.put("holidayMode", "sunday")
+            .put("quizSubjects", JSONArray()).put("quizLevels", JSONArray())
         return defaults
     }
 
@@ -240,6 +242,14 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             require(input.getString("scheduleMode") in listOf("allow", "control")) { "未知的时段用途" }
             next.put("scheduleMode", input.getString("scheduleMode"))
         }
+        for (key in listOf("quizSubjects", "quizLevels")) if (input.has(key)) {
+            val raw = input.optJSONArray(key) ?: JSONArray()
+            val clean = JSONArray()
+            for (i in 0 until minOf(raw.length(), 50)) raw.optString(i).trim().takeIf { it.isNotEmpty() && it.length <= 32 }?.let { value ->
+                if (!(0 until clean.length()).any { clean.optString(it) == value }) clean.put(value)
+            }
+            next.put(key, clean)
+        }
         if (input.has("weekSlots")) {
             val clean = normalizeWeek(input.optJSONArray("weekSlots")) ?: throw IllegalArgumentException("可用时段格式不正确")
             next.put("weekSlots", clean)
@@ -288,6 +298,8 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
                     .put("k", c.getInt(c.getColumnIndexOrThrow("answer")))
                     .put("difficulty", c.getInt(c.getColumnIndexOrThrow("difficulty")))
                     .put("tip", c.getString(c.getColumnIndexOrThrow("tip")) ?: "")
+                    .put("subject", c.getString(c.getColumnIndexOrThrow("subject")) ?: "")
+                    .put("level", c.getString(c.getColumnIndexOrThrow("level")) ?: "")
                 if (!item.has("type")) item.put("type", "single")
                 out.put(item)
             }
