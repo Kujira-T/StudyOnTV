@@ -10,8 +10,9 @@ import java.net.URL
  * 版本检查。GitHub 在部分网络下不稳定，所以按顺序尝试多个来源，第一个成功的为准：
  *
  * 1. 家长在管理面板里填写的自定义地址（GitHub API 格式或 update.json 清单格式都可以）
- * 2. GitHub Releases API
- * 3. 仓库里的 update.json 清单：raw.githubusercontent → jsDelivr 三个 CDN 节点 → 加速镜像代理
+ * 2. 蒲公英公开下载页（不携带账户 API Key）
+ * 3. GitHub Releases API
+ * 4. 仓库里的 update.json 清单：raw.githubusercontent → jsDelivr 三个 CDN 节点 → 加速镜像代理
  *
  * APK 下载同样会依次尝试“直连 → 加速镜像”。镜像是第三方服务，所以下载后会校验 SHA-256（若有）
  * 以及 APK 签名必须与当前安装的版本一致，见 [ApkInstaller]。
@@ -50,7 +51,8 @@ object Updater {
 
     /** 可用的 APK 下载地址：上次成功的线路优先，其次直连，再其次各个镜像 */
     fun downloadCandidates(ctx: Context, url: String): List<Pair<String, String>> {
-        val list = mutableListOf("直连 GitHub" to url)
+        if (Pgyer.isPage(url)) return listOf("蒲公英" to url)
+        val list = mutableListOf((if (URL(url).host.endsWith("github.com")) "直连 GitHub" else URL(url).host) to url)
         if (url.startsWith("https://github.com/") || url.startsWith("https://objects.githubusercontent.com/")) {
             mirrors(ctx).forEach { list.add(URL(it).host to it + url) }
         }
@@ -84,6 +86,7 @@ object Updater {
         val current = currentVersion(ctx)
         val sources = mutableListOf<Pair<String, String>>()
         api(ctx).takeIf { it.startsWith("https://") }?.let { sources.add("自定义地址" to it) }
+        sources.add("蒲公英" to Pgyer.pageUrl)
         sources.add("GitHub API" to GITHUB_API)
         MANIFEST_URLS.forEach { sources.add(URL(it).host to it) }
         mirrors(ctx).forEach { sources.add(URL(it).host to it + MANIFEST_URLS[0]) }
@@ -91,7 +94,8 @@ object Updater {
         for ((name, endpoint) in sources) {
             val started = System.currentTimeMillis()
             try {
-                val parsed = fetch(endpoint)?.let { parse(it, current, name) }
+                val parsed = if (name == "蒲公英") Pgyer.info(current)
+                    else fetch(endpoint)?.let { parse(it, current, name) }
                 log.put(JSONObject().put("source", name).put("ok", parsed != null).put("ms", System.currentTimeMillis() - started)
                     .put("message", if (parsed == null) "没有找到适用于本设备的安装包" else "v" + parsed.latest))
                 if (parsed != null) { info = parsed; break }

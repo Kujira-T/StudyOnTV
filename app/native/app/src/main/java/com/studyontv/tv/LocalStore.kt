@@ -137,7 +137,8 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             .put("difficultyRewardEnabled", false)
             .put("difficultyRewards", JSONObject().put("1", 1).put("2", 2).put("3", 3).put("4", 4).put("5", 5))
             .put("praisePhrases", JSONArray(DEFAULT_PRAISE)).put("encouragePhrases", JSONArray(DEFAULT_ENCOURAGE))
-            .put("autoNextSeconds", 0).put("scheduleMode", "allow").put("theme", if (BuildConfig.FLAVOR == "tv") "dark" else "system")
+            .put("autoNextSeconds", 0).put("scheduleMode", "allow").put("blockSettingsDuringControl", true).put("theme", if (BuildConfig.FLAVOR == "tv") "dark" else "system")
+            .put("holidayMode", "sunday")
             .put("version", 1)
         val saved = try { JSONObject(get("config", "{}")) } catch (e: Exception) { JSONObject() }
         saved.keys().forEach { defaults.put(it, saved.get(it)) }
@@ -149,7 +150,48 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
         if (!validStart) defaults.put("windowStart", "18:30")
         if (!validEnd) defaults.put("windowEnd", "20:00")
         if (!saved.has("allDay") && validStart && validEnd && saved.optString("windowStart") == saved.optString("windowEnd")) defaults.put("allDay", true)
+        // 旧版的单个时段自动迁移成一周七天；新版按 30 分钟格子保存
+        val migrated = normalizeWeek(saved.optJSONArray("weekSlots"))
+            ?: if (saved.has("allDay") || saved.has("windowStart") || saved.has("windowEnd")) {
+                val oldDefault = !defaults.optBoolean("allDay") &&
+                    defaults.optString("windowStart") == "18:30" && defaults.optString("windowEnd") == "20:00"
+                if (oldDefault) weekendDefault()
+                else weekFromWindow(defaults.optBoolean("allDay"), defaults.optString("windowStart"), defaults.optString("windowEnd"))
+            } else weekendDefault()
+        defaults.put("weekSlots", migrated)
+        if (defaults.optString("holidayMode") !in listOf("sunday", "normal")) defaults.put("holidayMode", "sunday")
         return defaults
+    }
+
+    private fun weekFromWindow(allDay: Boolean, start: String, end: String): JSONArray {
+        fun minutes(value: String): Int? = try { value.split(":").let { it[0].toInt() * 60 + it[1].toInt() } } catch (_: Exception) { null }
+        val from = minutes(start) ?: 18 * 60 + 30
+        val to = minutes(end) ?: 20 * 60
+        val chars = CharArray(48) { index ->
+            val minute = index * 30
+            val on = allDay || if (from < to) minute in from until to else minute >= from || minute < to
+            if (on) '1' else '0'
+        }
+        val day = String(chars)
+        return JSONArray().apply { repeat(7) { put(day) } }
+    }
+
+    /** 新安装的默认：只在周末 09:00–20:00 可用 */
+    private fun weekendDefault(): JSONArray {
+        val empty = "0".repeat(48)
+        val weekend = weekFromWindow(false, "09:00", "20:00").optString(0)
+        return JSONArray().apply { repeat(5) { put(empty) }; put(weekend); put(weekend) }
+    }
+
+    private fun normalizeWeek(raw: JSONArray?): JSONArray? {
+        if (raw == null || raw.length() != 7) return null
+        val out = JSONArray()
+        for (i in 0 until 7) {
+            val day = raw.optString(i)
+            if (day.length != 48 || day.any { it != '0' && it != '1' }) return null
+            out.put(day)
+        }
+        return out
     }
 
     fun saveConfig(input: JSONObject): JSONObject {
@@ -181,7 +223,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             require(input.getString("playMode") in listOf("round", "streak", "practice")) { "未知玩法" }
             next.put("playMode", input.getString("playMode"))
         }
-        listOf("extraEnabled", "difficultyRewardEnabled", "allDay", "spacedRepetitionEnabled").forEach {
+        listOf("extraEnabled", "difficultyRewardEnabled", "allDay", "spacedRepetitionEnabled", "blockSettingsDuringControl").forEach {
             if (input.has(it)) next.put(it, input.getBoolean(it))
         }
         for (key in listOf("praisePhrases", "encouragePhrases")) if (input.has(key)) {
@@ -197,6 +239,14 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
         if (input.has("scheduleMode")) {
             require(input.getString("scheduleMode") in listOf("allow", "control")) { "未知的时段用途" }
             next.put("scheduleMode", input.getString("scheduleMode"))
+        }
+        if (input.has("weekSlots")) {
+            val clean = normalizeWeek(input.optJSONArray("weekSlots")) ?: throw IllegalArgumentException("可用时段格式不正确")
+            next.put("weekSlots", clean)
+        }
+        if (input.has("holidayMode")) {
+            require(input.getString("holidayMode") in listOf("sunday", "normal")) { "未知的节假日规则" }
+            next.put("holidayMode", input.getString("holidayMode"))
         }
         if (input.has("theme")) {
             require(input.getString("theme") in listOf("dark", "light", "system")) { "外观需要为深色、浅色或跟随系统" }
@@ -215,7 +265,6 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             }
             next.put("difficultyRewards", rewards)
         }
-        require(next.optBoolean("allDay") || next.getString("windowStart") != next.getString("windowEnd")) { "开始与结束时间不能相同；全天请开启全天可用" }
         next.put("version", next.optInt("version", 1) + 1)
         set("config", next.toString())
         return next

@@ -4,7 +4,9 @@ An Android learning and screen-time app for tablets, phones and TVs. Tablets and
 
 This project is linked with and endorses the [LINUX DO](https://linux.do) community.
 
-[Download APK](https://github.com/chadyi/StudyOnTV/releases/latest) · [中文说明](./README.md) · [Installation](./docs/install.md)
+[Download from GitHub Release](https://github.com/chadyi/StudyOnTV/releases/latest) · [中文说明](./README.md) · [Installation](./docs/install.md)
+
+If GitHub is unavailable, use the Pgyer backup: [Mobile / tablet](https://www.pgyer.com/StudyOnTVMobile) · [TV](https://www.pgyer.com/StudyOnTVTV).
 
 ## Learning
 
@@ -24,29 +26,36 @@ The controlled device hosts its own local HTTP panel. Parents connect over the s
 
 The panel separates rules, question banks, grading and usage records. APIs require authentication as well; the former six-digit access code and unauthenticated question-bank access have been removed.
 
-Updates no longer depend on a direct GitHub connection: the app falls back to jsDelivr and download mirrors, and verifies each APK by SHA-256 and signature.
-
 Subjective submissions can be graded by a parent, an authenticated Agent, or an optional OpenAI-compatible AI endpoint such as DeepSeek, Qwen, Zhipu, Kimi, SiliconFlow or a local Ollama server, with built-in presets, a connection test and model list fetching. Handwriting requires a vision-capable model or human review. Failed AI calls preserve the submission for later review. Enabling AI sends question and answer content to the configured provider.
 
 [Question-bank and grading API](./docs/ai-api.md) · [Gameplay rules](./docs/gameplay.md) · [Example question bank](./data/banks/open-play.json)
 
 ## Screenshots
 
-![Tablet learning](./docs/screenshots/tablet-quiz.png)
-![Tablet handwriting](./docs/screenshots/tablet-handwriting.png)
-![Parent review](./docs/screenshots/parent-review.png)
-![Parent dashboard](./docs/screenshots/parent-desktop.png)
-![TV learning](./docs/screenshots/tv-quiz.png)
+![Tablet learning](./docs/screenshots/v0.3.0/tablet-quiz.png)
+![Tablet handwriting](./docs/screenshots/v0.3.0/tablet-handwriting.png)
+<table><tr>
+<td align="center"><img src="./docs/screenshots/v0.3.0/phone-quiz.png" width="280" alt="Phone learning"><br><sub>Phone learning</sub></td>
+<td align="center"><img src="./docs/screenshots/v0.3.0/parent-review.png" width="280" alt="Parent review"><br><sub>Parent review and AI settings</sub></td>
+</tr></table>
+![Parent dashboard](./docs/screenshots/v0.3.0/parent-desktop.png)
+![TV learning](./docs/screenshots/v0.3.0/tv-quiz.png)
 
 ## Screen-time limits
 
 Native Android code validates answers and awards time. Actual foreground app use consumes the persisted balance; study, launcher, locked-screen and screen-off time do not. Limits include daily usage, daily rewarded rounds and allowed hours, including overnight windows.
 
-Accessibility and background-running permissions are required. Android force-stop, uninstall, revoked permissions and manufacturer background restrictions can stop enforcement. System settings and emergency calling remain available.
+Schedules can either allow device use only within the selected hours, or require learning only within those hours. The latter leaves the rest of the day free, without consuming the earned balance. Both support overnight windows and an explicit all-day option.
+
+All permissions are optional. Accessibility, or overlay permission combined with usage access, can identify apps and enforce limits. Overlay-only mode approximates awake time away from the learning screen. During controlled periods, parents can enable Settings interception; local parent verification temporarily permits access, and free periods remain unrestricted. Optional device-admin activation discourages normal uninstallation on supported devices. Force-stop, revoked permissions and manufacturer background policies can interrupt enforcement.
+
+Android boot, supported quick-boot broadcasts and package replacement can restart the management service after initial setup. A TV remote's standby action or manufacturer task cleanup may not send a boot broadcast; allow autostart/background running and verify the behavior on the actual device.
 
 ## Community suggestions
 
 Thanks to **xiuweng** on LINUX DO for mobile control, the hidden management entry and persistent extra practice; and to **free-swimming** for star difficulty and different time rewards.
+
+Suggestions from [#2](https://github.com/chadyi/StudyOnTV/issues/2) improved password changes, AI presets, question-bank management and lazy loading. [#3](https://github.com/chadyi/StudyOnTV/issues/3) led to inline answer feedback and manual continuation; [#4](https://github.com/chadyi/StudyOnTV/issues/4) informed control-hour schedules, optional uninstall protection and stronger background-audio handling. [#5](https://github.com/chadyi/StudyOnTV/issues/5) prompted clearer boot-startup guidance.
 
 ## License
 

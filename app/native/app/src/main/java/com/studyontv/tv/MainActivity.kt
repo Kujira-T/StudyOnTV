@@ -55,7 +55,7 @@ open class MainActivity : Activity() {
 
     override fun onStop() {
         super.onStop()
-        if (this is GateActivity) MediaPause.release(this)
+        MediaPause.release(this)
         if (DeviceBridge.isTv(this) && ::web.isInitialized && !webReleased) {
             (web.parent as? android.view.ViewGroup)?.removeView(web)
             web.destroy()
@@ -76,7 +76,8 @@ open class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (this is GateActivity) MediaPause.pause(this)
+        if (Prefs.onboarded(this)) GateService.ensureRunning(this, "app")
+        if (this is GateActivity && !DeviceRuntime.learning.status().optBoolean("free")) MediaPause.pause(this)
         if (webReleased) createWeb()
         checkUpdate()
         if (::web.isInitialized && !webReleased) web.evaluateJavascript("window.SOTV_RESUME&&SOTV_RESUME()", null)

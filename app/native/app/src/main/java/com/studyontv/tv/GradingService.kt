@@ -123,13 +123,13 @@ object GradingService {
     }
 
     /** 发送 JSON 模式请求；部分服务商不支持 response_format，会自动去掉后重试 */
-    private fun chat(config: JSONObject, messages: JSONArray, maxTokens: Int): String {
+    private fun chat(config: JSONObject, messages: JSONArray, maxTokens: Int, timeout: Int = 30000): String {
         val body = JSONObject().put("model", config.getString("model")).put("messages", messages)
             .put("temperature", 0).put("max_tokens", maxTokens).put("response_format", JSONObject().put("type", "json_object"))
         val url = chatUrl(config.getString("endpoint"))
         val key = config.optString("apiKey")
-        val envelope = try { request(url, key, body) } catch (e: ApiError) {
-            if (e.message?.contains("HTTP 400") == true || e.message?.contains("HTTP 422") == true) request(url, key, body.apply { remove("response_format") }) else throw e
+        val envelope = try { request(url, key, body, timeout) } catch (e: ApiError) {
+            if (e.message?.contains("HTTP 400") == true || e.message?.contains("HTTP 422") == true) request(url, key, body.apply { remove("response_format") }, timeout) else throw e
         }
         return envelope.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content")?.trim()
             ?: throw ApiError("返回格式不是 chat/completions")
@@ -171,6 +171,89 @@ object GradingService {
         JSONObject().put("ok", true).put("items", ids)
     } catch (e: Exception) {
         JSONObject().put("ok", false).put("items", JSONArray()).put("message", e.message ?: "获取失败，可以直接手动填写模型名称")
+    }
+
+    /** 由已配置的 AI 生成题库候选题；只返回候选，不直接写入。 */
+    fun generateQuestions(store: LocalStore, input: JSONObject): JSONObject {
+        val config = settings(store, true)
+        require(config.optString("endpoint").isNotBlank() && config.optString("model").isNotBlank()) { "请先在设置里配置 AI 批改服务" }
+        val topic = input.optString("topic").trim().take(200)
+        require(topic.isNotEmpty()) { "请填写出题范围" }
+        val count = input.optInt("count", 5).coerceIn(1, 20)
+        val allowed = listOf("single", "multiple", "boolean", "text", "subjective")
+        val asked = input.optJSONArray("types")?.let { array ->
+            (0 until array.length()).mapNotNull { array.optString(it) }.filter { it in allowed }
+        }.orEmpty().ifEmpty { allowed }
+        val difficulty = input.optString("difficulty", "mixed")
+        val extra = input.optString("extra").trim().take(300)
+        val withTip = input.optBoolean("withTip", true)
+        val labels = mapOf("single" to "单选", "multiple" to "多选", "boolean" to "判断", "text" to "填空", "subjective" to "主观题")
+        val system = """你是认真出题的中小学老师。只返回 JSON，不要 Markdown 代码块，不要解释。
+格式：{\"items\":[{\"type\":\"single\",\"q\":\"题干\",\"a\":[\"选项\",\"选项\"],\"k\":1,\"difficulty\":2,\"tip\":\"解析\"}]}
+type 只能是：single（单选，答案用 k 表示正确选项下标）、multiple（多选，用 correctIndices 数组）、boolean（判断，a 固定为 [\"正确\",\"错误\"]，k 为 0 或 1）、text（填空，用 answers 数组给出可接受答案）、subjective（主观题，用 modelAnswer 和 rubric）。
+每题必须有 q、type、difficulty（1-5）和完整答案；解析放在 tip，没有就填空字符串。题干和选项不要使用 HTML。"""
+        val request = JSONObject()
+            .put("topic", topic).put("count", count).put("types", asked.map { labels[it] })
+            .put("difficulty", if (difficulty == "mixed") "由易到难混合" else "$difficulty 星")
+            .put("extra", extra).put("withTip", withTip)
+        val messages = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", system))
+            .put(JSONObject().put("role", "user").put("content", "请出 $count 道题，范围：$topic。题型：${asked.joinToString("、") { labels[it] ?: it }}。难度：${request.optString("difficulty")}。" +
+                (if (extra.isNotEmpty()) "额外要求：$extra。" else "") + (if (!withTip) "不需要写解析。" else "每题附一句解析。") + "只返回 JSON。"))
+        val reply = extractJson(chat(config, messages, 5000, 60000))
+        val raw = reply.optJSONArray("items") ?: throw IllegalArgumentException("模型没有返回题目列表，请重试")
+        val existing = HashSet<String>()
+        val bank = store.questions(null, null, 5000)
+        for (i in 0 until bank.length()) bank.optJSONObject(i)?.optString("q")?.let { existing.add(it.replace(Regex("\\s+"), "")) }
+        val skipDuplicates = input.optBoolean("skipDuplicates", true)
+        val items = JSONArray()
+        var duplicate = 0
+        for (i in 0 until raw.length()) {
+            val item = raw.optJSONObject(i) ?: continue
+            val type = item.optString("type")
+            val q = item.optString("q").trim()
+            if (type !in allowed || q.isEmpty() || q.length > 500) continue
+            val key = q.replace(Regex("\\s+"), "")
+            if (skipDuplicates && !existing.add(key)) { duplicate++; continue }
+            val next = JSONObject().put("type", type).put("q", q).put("difficulty", item.optInt("difficulty", 2).coerceIn(1, 5))
+            val tip = item.optString("tip").trim()
+            if (tip.isNotEmpty()) next.put("tip", tip.take(500))
+            when (type) {
+                "boolean" -> {
+                    next.put("a", JSONArray().put("正确").put("错误"))
+                    next.put("k", item.optInt("k", 0).coerceIn(0, 1))
+                }
+                "text" -> {
+                    val answers = item.optJSONArray("answers") ?: JSONArray()
+                    val list = (0 until answers.length()).map { answers.optString(it).trim() }.filter { it.isNotEmpty() }.distinct().take(8)
+                    if (list.isEmpty()) continue
+                    next.put("answers", JSONArray(list))
+                }
+                "subjective" -> {
+                    val model = item.optString("modelAnswer").trim()
+                    if (model.isEmpty()) continue
+                    next.put("modelAnswer", model.take(800))
+                    next.put("rubric", item.optString("rubric").trim().take(500))
+                }
+                else -> {
+                    val options = item.optJSONArray("a") ?: JSONArray()
+                    val list = (0 until options.length()).map { options.optString(it).trim() }.take(8)
+                    if (list.size < 2 || list.any { it.isEmpty() }) continue
+                    next.put("a", JSONArray(list))
+                    if (type == "multiple") {
+                        val indices = item.optJSONArray("correctIndices") ?: JSONArray()
+                        val correct = (0 until indices.length()).map { indices.optInt(it) }.filter { it in list.indices }.distinct().sorted()
+                        if (correct.isEmpty()) continue
+                        next.put("correctIndices", JSONArray(correct))
+                    } else {
+                        next.put("k", item.optInt("k", 0).coerceIn(0, list.size - 1))
+                    }
+                }
+            }
+            items.put(next)
+        }
+        if (items.length() == 0) throw IllegalArgumentException(if (duplicate > 0) "生成的题目都和题库里已有的重复，请换个范围或关闭跳过重复" else "模型返回的题目格式不完整，请重试")
+        return JSONObject().put("items", items).put("duplicates", duplicate)
     }
 
     @Synchronized

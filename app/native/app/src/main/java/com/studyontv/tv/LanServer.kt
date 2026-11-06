@@ -112,15 +112,31 @@ class LanServer(
         val deviceAccess = local && headers["x-device-token"] == AdminAuth.deviceToken
         val token = headers["authorization"]?.removePrefix("Bearer ") ?: headers["x-admin-token"]
         if (path == "/api/auth" && method == "POST") {
-            val value = try { JSONObject(body).optString("passphrase") } catch (e: Exception) { "" }
-            val session = AdminAuth.login(context, value)
+            val input = try { JSONObject(body) } catch (e: Exception) { JSONObject() }
+            val remember = input.optBoolean("remember")
+            val session = AdminAuth.login(context, input.optString("passphrase"), remember)
             return if (session == null) json(out, 401, err("管理密码错误，连续错误 5 次后需等待一分钟"))
-                else json(out, 200, JSONObject().put("token", session).put("expiresIn", 43200))
+                else json(out, 200, JSONObject().put("token", session).put("expiresIn", if (remember) 30 * 86400 else 43200))
         }
         if (path.startsWith("/api/") && path != "/api/hello") {
             val adminKey = headers["x-admin-key"]
-            val authorized = deviceAccess || AdminAuth.valid(token) || (adminKey != null && AdminAuth.verify(context, adminKey))
-            if (!authorized) return json(out, 401, err("unauthorized"))
+            val integrationToken = token?.takeIf { it.startsWith("sotv_") }
+            if (integrationToken != null && !IntegrationAuth.takeBudget())
+                return json(out, 429, err("too_many_requests").put("message", "请求太频繁，请稍后再试"))
+            val integration = IntegrationAuth.verify(context, integrationToken)
+            val parent = AdminAuth.valid(token) || (adminKey != null && AdminAuth.verify(context, adminKey))
+            if (!deviceAccess && !parent && integration == null) return json(out, 401, err("unauthorized"))
+            // 集成令牌只能访问明确列出的接口；不能改规则、题库、密码或权限本身。
+            if (integration != null && !deviceAccess && !parent) {
+                val scope = when {
+                    path == "/api/state" && method == "GET" -> "read"
+                    path == "/api/device" && method == "GET" -> "read"
+                    path == "/api/remote" && method == "POST" -> "control"
+                    else -> null
+                } ?: return json(out, 403, err("forbidden").put("message", "这个接口需要家长登录"))
+                if ((scope == "read" && !integration.read) || (scope == "control" && !integration.control))
+                    return json(out, 403, err("forbidden").put("message", "集成令牌没有这个权限"))
+            }
         }
 
         try {
@@ -147,9 +163,27 @@ class LanServer(
                         .put("repetition", store.repetitionStats())
                         .put("learning", DeviceRuntime.learning.status()))
             }
+            path == "/api/holidays" && method == "GET" -> return json(out, 200, HolidayService.info(context))
+            path == "/api/holidays/sync" && method == "POST" -> {
+                val year = query.split("&").mapNotNull { part -> part.split("=").takeIf { it.size == 2 && it[0] == "year" }?.get(1)?.toIntOrNull() }.firstOrNull()
+                    ?: java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                return try {
+                    json(out, 200, HolidayService.fetch(context, year))
+                } catch (e: Exception) {
+                    json(out, 200, err("holiday_failed").put("message", e.message ?: "节假日同步失败"))
+                }
+            }
             path == "/api/config" && method == "PUT" -> {
                 val input = try { JSONObject(body) } catch (e: Exception) { return json(out, 200, err("bad_json")) }
                 return json(out, 200, JSONObject().put("config", store.saveConfig(input)))
+            }
+            path == "/api/questions/generate" && method == "POST" -> {
+                val input = try { JSONObject(body.ifEmpty { "{}" }) } catch (e: Exception) { return json(out, 200, err("bad_json")) }
+                return try {
+                    json(out, 200, GradingService.generateQuestions(store, input))
+                } catch (e: Exception) {
+                    json(out, 200, err("generate_failed").put("message", e.message ?: "生成失败，请稍后重试"))
+                }
             }
             path == "/api/questions" && method == "GET" -> {
                 val items = store.questions(q["subject"], q["level"], q["limit"]?.toIntOrNull() ?: 500)
@@ -202,9 +236,41 @@ class LanServer(
                 AdminAuth.setPassword(context, input.optString("password"))
                 return json(out, 200, JSONObject().put("ok", true))
             }
+            path == "/api/logout" && method == "POST" -> { AdminAuth.forget(context, token); return json(out, 200, JSONObject().put("ok", true)) }
+            path == "/api/remote" && method == "POST" -> {
+                // 家长会话，或带「控制」权限的集成令牌；学习页的设备令牌不能调用
+                val parent = AdminAuth.valid(token)
+                val control = IntegrationAuth.verify(context, token)?.control == true
+                if (!parent && !control) return json(out, 403, err("forbidden").put("message", "请先用管理密码登录"))
+                val input = JSONObject(body.ifEmpty { "{}" })
+                val status = DeviceRuntime.learning.remote(input.optString("action"), input.optInt("minutes"), if (parent) "panel" else "integration")
+                GateService.refreshNow()
+                return json(out, 200, JSONObject().put("learning", status))
+            }
+            path == "/api/integration" && method == "GET" -> return json(out, 200, IntegrationAuth.state(context))
+            path == "/api/integration" && method == "POST" -> {
+                val input = JSONObject(body.ifEmpty { "{}" })
+                val read = input.optBoolean("read", true)
+                val control = input.optBoolean("control", false)
+                if (!read && !control) return json(out, 200, err("bad_scope").put("message", "至少选择只读或控制中的一种权限"))
+                val token = IntegrationAuth.issue(context, read, control)
+                return json(out, 200, JSONObject().put("token", token).put("integration", IntegrationAuth.state(context)))
+            }
+            path == "/api/integration" && method == "PUT" -> {
+                val input = JSONObject(body.ifEmpty { "{}" })
+                IntegrationAuth.update(context,
+                    if (input.has("enabled")) input.optBoolean("enabled") else null,
+                    if (input.has("read")) input.optBoolean("read") else null,
+                    if (input.has("control")) input.optBoolean("control") else null)
+                return json(out, 200, IntegrationAuth.state(context))
+            }
+            path == "/api/integration" && method == "DELETE" -> {
+                IntegrationAuth.revoke(context)
+                return json(out, 200, IntegrationAuth.state(context))
+            }
             path == "/api/device" && method == "GET" -> return json(out, 200, JSONObject().put("name", Prefs.deviceName(context))
                 .put("version", BuildConfig.VERSION_NAME).put("flavor", BuildConfig.FLAVOR).put("ip", localIp() ?: "").put("port", boundPort)
-                .put("uninstallProtected", UninstallGuard.active(context)))
+                .put("uninstallProtected", UninstallGuard.active(context)).put("autostart", Watchdog.report(context)).put("monitor", GateService.diagnostics(context)))
             path == "/api/device" && method == "PUT" -> {
                 val name = JSONObject(body).optString("name").trim()
                 require(name.length in 1..32) { "设备名称需要 1–32 个字" }

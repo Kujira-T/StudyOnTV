@@ -43,8 +43,13 @@
   function pill() {
     var c = state.config, st = state.learning;
     var left = Math.max(0, (c.roundsPerDay || 3) - (st.roundsDoneToday || 0));
+    if (st.override && st.override.mode === 'unlock') { $('topPill').textContent = '家长已解锁 · ' + left2(st.override.remainingSeconds); return; }
     if (st.free) { $('topPill').textContent = '自由时段'; return; }
     $('topPill').textContent = (st.remainingSeconds > 0 ? '可用 ' + Math.ceil(st.remainingSeconds / 60) + ' 分钟 · ' : '') + '还剩 ' + left + ' 组' + (st.extraPool > 0 ? ' · 加练池 ' + st.extraPool + ' 题' : '');
+  }
+  function left2(seconds) {
+    var m = Math.ceil(seconds / 60);
+    return m >= 60 ? '还剩 ' + Math.floor(m / 60) + ' 小时' + (m % 60 ? ' ' + (m % 60) + ' 分' : '') : '还剩 ' + m + ' 分钟';
   }
   function loadState(callback) {
     request('/api/state', null, function (error, result) {
@@ -71,8 +76,10 @@
       if (result.free) {
         // 「只在这段时间内需要先答题」模式下的时段外：不管控
         state.lockReason = '';
-        show('lock'); icon($('lockIcon'), 'check'); $('lockTitle').textContent = '现在是自由时段';
-        $('lockDesc').textContent = '每天 ' + state.config.windowStart + ' — ' + state.config.windowEnd + ' 需要先完成学习任务，其余时间可以直接使用';
+        var ov = state.learning.override;
+        show('lock'); icon($('lockIcon'), 'check');
+        $('lockTitle').textContent = ov && ov.mode === 'unlock' ? '家长已临时解锁' : '现在是自由时段';
+        $('lockDesc').textContent = ov && ov.mode === 'unlock' ? left2(ov.remainingSeconds) + '，到时自动恢复学习规则' : '每天 ' + state.config.windowStart + ' — ' + state.config.windowEnd + ' 需要先完成学习任务，其余时间可以直接使用';
         $('lockNote').textContent = '';
         $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="home">返回桌面</button>';
         focusDefault(); return;
@@ -246,6 +253,23 @@
   function lock(reason) {
     state.lockReason = reason;
     show('lock'); state.round = null;
+    if (reason === 'settings') {
+      icon($('lockIcon'), 'hourglass');
+      $('lockTitle').textContent = '管控期间暂不能打开系统设置';
+      $('lockDesc').textContent = '家长验证后可临时进入，或返回学习页继续。';
+      $('lockNote').textContent = '';
+      $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="return-learning">返回学习页</button>';
+      focusDefault(); return;
+    }
+    if (reason === 'locked') {
+      var ov = state.learning.override || {};
+      icon($('lockIcon'), 'lock');
+      $('lockTitle').textContent = '家长已暂停使用';
+      $('lockDesc').textContent = ov.remainingSeconds > 0 ? left2(ov.remainingSeconds) + '后自动恢复' : '需要使用时，请找家长解锁';
+      $('lockNote').textContent = '';
+      $('lockActions').innerHTML = '';
+      focusDefault(); return;
+    }
     icon($('lockIcon'), reason === 'schedule' ? 'clock' : 'hourglass');
     $('lockTitle').textContent = reason === 'schedule' ? '还没到可用时间' : reason === 'rounds' ? '今天的任务已全部完成' : reason === 'quota' ? '今天的使用时间已用完' : '使用时间到了';
     var when = '';
@@ -283,6 +307,7 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     hourglass: '<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'
   };
   function icon(el, name) {
@@ -349,16 +374,22 @@
     if (action === 'permissions' || action === 'password') nativeCall(action === 'permissions' ? 'openPermissions' : 'changePassword');
     if (action === 'clear-drawing') { state.draft.drawing = ''; renderQuestion(); }
     if (action === 'retry') start();
+    if (action === 'return-learning') nativeCall('backToQuiz');
     if (action === 'home') nativeCall('exitToLauncher');
     if (action === 'quiz') { if (state.screen === 'pair') nativeCall('backToQuiz'); else start(); }
   }
   function route() {
     window.clearTimeout(nextTimer); state.busy = false; hideFeedback();
     var hash = location.hash || '#/quiz';
+    state.settingsGate = hash.indexOf('reason=settings') >= 0;
     if (hash.indexOf('#/pair') === 0) return pair();
     loadState(function (error) {
       if (error) { $('qText').textContent = error; return; }
-      if (hash.indexOf('#/lock') === 0) lock(state.learning.reason || 'timeup'); else start();
+      if (state.settingsGate) {
+        if (state.config.blockSettingsDuringControl !== false && !state.learning.free) lock('settings');
+        else { state.settingsGate = false; start(); }
+      } else if (hash.indexOf('#/lock') === 0 && !state.learning.free) lock(state.learning.reason || 'timeup');
+      else start();
     });
   }
   function boot() {
@@ -397,11 +428,26 @@
     route();
     window.setInterval(function () {
       $('clock').textContent = new Date().toTimeString().slice(0, 5);
-      if (state.busy || state.reviewed || state.feedback || state.screen === 'pair') return;
-      var version = state.config.version;
+      if ((state.busy && !state.feedback) || state.screen === 'pair') return;
+      var version = state.config.version, wasFree = !!state.learning.free;
       loadState(function (error) {
         if (error) return;
-        if (state.awaiting) { start(); return; }
+        if (state.settingsGate) {
+          if (!state.learning.free && state.config.blockSettingsDuringControl !== false) return;
+          state.settingsGate = false; start(); return;
+        }
+        if (wasFree !== !!state.learning.free && state.config.playMode !== 'practice') {
+          window.clearTimeout(nextTimer); state.busy = false; state.awaiting = false; state.reviewed = false;
+          hideFeedback(); start(); return;
+        }
+        var ovKey = state.learning.override ? state.learning.override.mode + state.learning.override.at : '';
+        if (ovKey !== (state.ovKey || '')) {
+          state.ovKey = ovKey;
+          window.clearTimeout(nextTimer); state.busy = false; state.awaiting = false; state.reviewed = false;
+          hideFeedback(); start(); return;
+        }
+        if (state.reviewed || state.feedback) return;
+        if (state.awaiting) { if (!state.learning.awaitingReview) start(); return; }
         if (state.screen === 'lock' && (state.lockReason !== state.learning.reason || state.wasFree !== !!state.learning.free)) {
           state.wasFree = !!state.learning.free;
           if (!state.learning.reason) start(); else lock(state.learning.reason);

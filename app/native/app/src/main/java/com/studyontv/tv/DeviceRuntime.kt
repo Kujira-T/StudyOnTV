@@ -6,6 +6,8 @@ object DeviceRuntime {
     private var server: LanServer? = null
     lateinit var store: LocalStore
         private set
+    lateinit var appContext: Context
+        private set
     lateinit var learning: LearningEngine
         private set
 
@@ -13,6 +15,7 @@ object DeviceRuntime {
     fun ensure(context: Context) {
         if (server != null) return
         val app = context.applicationContext
+        appContext = app
         (app as android.app.Application).registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: android.app.Activity) {
                 Foreground.resumeOwn(activity)

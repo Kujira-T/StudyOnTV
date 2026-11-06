@@ -96,7 +96,7 @@ class OnboardingActivity : Activity() {
         }
         add(android.R.drawable.ic_lock_lock, "防卸载", "孩子无法直接删除应用，家长可随时关闭", true, { UninstallGuard.active(this) }) {
             if (UninstallGuard.active(this)) openSettings(Settings.ACTION_SECURITY_SETTINGS)
-            else try { GateService.openingSystemPage(); startActivity(UninstallGuard.requestIntent(this)) } catch (_: Exception) {
+            else try { GateService.openingSystemPage(parentAuthorized = true); startActivity(UninstallGuard.requestIntent(this)) } catch (_: Exception) {
                 Toast.makeText(this, "这台设备不支持设备管理应用，无法开启防卸载", Toast.LENGTH_LONG).show()
             }
         }
@@ -135,12 +135,15 @@ class OnboardingActivity : Activity() {
         (items.firstOrNull { !it.enabled() }?.row?.view ?: manage).requestFocus()
     }
 
-    private fun ignoringBattery(): Boolean = try {
-        (getSystemService(POWER_SERVICE) as android.os.PowerManager).isIgnoringBatteryOptimizations(packageName)
-    } catch (_: Exception) { false }
+    private fun ignoringBattery(): Boolean {
+        if (Build.VERSION.SDK_INT < 23) return true
+        return try {
+            (getSystemService(POWER_SERVICE) as android.os.PowerManager).isIgnoringBatteryOptimizations(packageName)
+        } catch (_: Exception) { false }
+    }
 
     private fun openSettings(action: String, packageSpecific: Boolean = false, fallback: String? = null) {
-        GateService.openingSystemPage()
+        GateService.openingSystemPage(parentAuthorized = true)
         val options = mutableListOf(Intent(action).apply { if (packageSpecific) data = Uri.parse("package:$packageName") })
         if (packageSpecific) options.add(Intent(action))
         if (fallback != null) options.add(Intent(fallback))

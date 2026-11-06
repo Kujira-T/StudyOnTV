@@ -6,22 +6,20 @@ import android.os.Build
 import android.os.SystemClock
 import android.view.KeyEvent
 
-/**
- * 悬浮学习页弹出时，让背后的视频 / 直播停下来（Issue #3、#4：题目出来了，视频声音还在）。
- * 悬浮窗不会让下层应用进入 onPause，所以分三步：
- * 1. 发送“媒体暂停”按键，并抢占音频焦点——大多数播放器会暂停；
- * 2. 学习页显示期间每秒检查一次，仍有声音就每 3 秒重发暂停（部分直播 / 视频应用会忽略第一次）；
- * 3. 重发两次后仍在播放，就把媒体音量静音，学习页收起时恢复原状。
- */
+/** Pause cooperative players first; keep a reversible music-stream mute for players that ignore pause. */
 object MediaPause {
     private val listener = AudioManager.OnAudioFocusChangeListener { }
+    private val owners = mutableSetOf<Context>()
     private var holding = false
     private var muted = false
     private var attempts = 0
     private var lastKey = 0L
+    private var originalVolume = 0
+    private var originalMuted = false
+    val active: Boolean get() = owners.isNotEmpty()
 
     private fun audio(context: Context) = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-
+    private fun prefs(context: Context) = context.getSharedPreferences("sotv", Context.MODE_PRIVATE)
     private fun sendPause(audio: AudioManager) {
         val now = SystemClock.uptimeMillis()
         audio.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE, 0))
@@ -30,56 +28,90 @@ object MediaPause {
     }
 
     @Suppress("DEPRECATION")
+    private fun setMuted(audio: AudioManager, value: Boolean) {
+        if (Build.VERSION.SDK_INT >= 23) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+            if (value) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE, 0)
+        else audio.setStreamMute(AudioManager.STREAM_MUSIC, value)
+    }
+
+    @Suppress("DEPRECATION")
     fun pause(context: Context) {
+        if (owners.contains(context)) return
         val audio = audio(context) ?: return
+        if (owners.isNotEmpty()) { owners.add(context); return }
+        recover(context)
         try {
+            originalVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+            originalMuted = if (Build.VERSION.SDK_INT >= 23) audio.isStreamMute(AudioManager.STREAM_MUSIC) else originalVolume == 0
             attempts = 0
+            lastKey = SystemClock.elapsedRealtime()
+            owners.add(context)
             if (audio.isMusicActive) { sendPause(audio); attempts = 1 }
-            if (!holding) holding = audio.requestAudioFocus(listener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            holding = audio.requestAudioFocus(listener, AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         } catch (e: Exception) { android.util.Log.w("StudyOnTV", "Pause media failed", e) }
     }
 
-    /** 学习页显示期间由 GateService 每秒调用 */
-    @Suppress("DEPRECATION")
     fun enforce(context: Context) {
+        if (!active) return
         val audio = audio(context) ?: return
         try {
-            if (!audio.isMusicActive || muted) return
+            if (!audio.isMusicActive) return
+            if (muted) {
+                // A volume key can undo stream mute while the quiz is still covering the player.
+                val audible = if (Build.VERSION.SDK_INT >= 23) !audio.isStreamMute(AudioManager.STREAM_MUSIC)
+                    else audio.getStreamVolume(AudioManager.STREAM_MUSIC) > 0
+                if (audible) setMuted(audio, true)
+                return
+            }
             if (SystemClock.elapsedRealtime() - lastKey < 3000) return
             if (attempts < 2) { sendPause(audio); attempts++; return }
-            if (Build.VERSION.SDK_INT >= 23) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
-            else audio.setStreamMute(AudioManager.STREAM_MUSIC, true)
+            // Commit the recovery record before changing global audio state.
+            if (!prefs(context).edit().putBoolean("media_muted", true)
+                    .putInt("media_original_volume", originalVolume)
+                    .putBoolean("media_original_muted", originalMuted).commit()) return
             muted = true
-            context.getSharedPreferences("sotv", Context.MODE_PRIVATE).edit().putBoolean("media_muted", true).apply()
-            android.util.Log.i("StudyOnTV", "Background media ignored pause; muted until the learning page closes")
+            setMuted(audio, true)
         } catch (e: Exception) { android.util.Log.w("StudyOnTV", "Enforce pause failed", e) }
     }
 
-    /** 服务被系统杀掉时可能还处于静音：重新启动后先恢复音量 */
     @Suppress("DEPRECATION")
-    fun recover(context: Context) {
-        val prefs = context.getSharedPreferences("sotv", Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("media_muted", false)) return
-        try {
-            val audio = audio(context) ?: return
-            if (Build.VERSION.SDK_INT >= 23) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
-            else audio.setStreamMute(AudioManager.STREAM_MUSIC, false)
-        } catch (_: Exception) { }
-        prefs.edit().remove("media_muted").apply()
+    private fun restore(context: Context): Boolean {
+        val state = prefs(context)
+        if (!state.getBoolean("media_muted", false)) return true
+        val audio = audio(context) ?: return false
+        return try {
+            val wasMuted = state.getBoolean("media_original_muted", false)
+            if ((!wasMuted || Build.VERSION.SDK_INT < 23) && state.contains("media_original_volume")) {
+                audio.setStreamVolume(AudioManager.STREAM_MUSIC,
+                    state.getInt("media_original_volume", 0).coerceIn(0, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0)
+            }
+            // Before API 23 mute calls are counted per client: release our request once.
+            // A previously quiet stream was read as volume zero, which remains quiet after release.
+            if (Build.VERSION.SDK_INT < 23) setMuted(audio, false) else setMuted(audio, wasMuted)
+            state.edit().remove("media_muted").remove("media_original_volume").remove("media_original_muted").commit()
+        } catch (e: Exception) {
+            android.util.Log.w("StudyOnTV", "Restore media volume failed", e)
+            false
+        }
+    }
+
+    /** Also used on startup after process death; never undo another currently visible gate's mute. */
+    fun recover(context: Context) { if (!active) restore(context) }
+
+    fun releaseAll(context: Context) {
+        owners.clear()
+        release(context)
     }
 
     @Suppress("DEPRECATION")
     fun release(context: Context) {
-        val audio = audio(context) ?: return
-        try {
-            if (muted) {
-                if (Build.VERSION.SDK_INT >= 23) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
-                else audio.setStreamMute(AudioManager.STREAM_MUSIC, false)
-                muted = false
-                context.getSharedPreferences("sotv", Context.MODE_PRIVATE).edit().remove("media_muted").apply()
-            }
-            if (holding) { audio.abandonAudioFocus(listener); holding = false }
-            attempts = 0
-        } catch (_: Exception) { }
+        owners.remove(context)
+        if (active) return
+        if (restore(context)) muted = false
+        try { if (holding) audio(context)?.abandonAudioFocus(listener) }
+        catch (e: Exception) { android.util.Log.w("StudyOnTV", "Release audio focus failed", e) }
+        holding = false
+        attempts = 0
     }
 }

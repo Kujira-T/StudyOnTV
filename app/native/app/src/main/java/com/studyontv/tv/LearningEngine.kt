@@ -22,33 +22,56 @@ class LearningEngine(private val store: LocalStore) {
         }
     }
 
-    private fun inWindow(config: JSONObject): Boolean {
-        if (config.optBoolean("allDay")) return true
-        val now = Calendar.getInstance()
-        val minute = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-        fun parse(value: String): Int = value.split(":").let { it[0].toInt() * 60 + it[1].toInt() }
-        val start = parse(config.getString("windowStart"))
-        val end = parse(config.getString("windowEnd"))
-        return if (start < end) minute in start until end else if (start > end) minute >= start || minute < end else false
+    private fun weekSlots(config: JSONObject): List<String>? {
+        val raw = config.optJSONArray("weekSlots") ?: return null
+        if (raw.length() != 7) return null
+        val list = (0 until 7).map { raw.optString(it) }
+        return list.takeIf { days -> days.all { it.length == 48 && it.all { ch -> ch == '0' || ch == '1' } } }
     }
 
-    private fun nextAvailable(config: JSONObject, tomorrow: Boolean): Long {
-        fun parse(value: String) = value.split(":").let { it[0].toInt() * 60 + it[1].toInt() }
-        val start = parse(config.getString("windowStart"))
-        val end = parse(config.getString("windowEnd"))
-        val cal = Calendar.getInstance()
-        if (tomorrow) {
-            cal.add(Calendar.DAY_OF_YEAR, 1)
-            cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
+    /** 周一 = 0 … 周日 = 6；法定节假日可以按周日安排 */
+    private fun dayIndex(config: JSONObject, cal: Calendar): Int {
+        if (config.optString("holidayMode", "sunday") == "sunday") {
+            val holiday = try { HolidayService.isHoliday(DeviceRuntime.appContext, cal) } catch (_: Throwable) { false }
+            if (holiday) return 6
         }
-        cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+        return (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
+    }
+
+    private fun allowedAt(config: JSONObject, cal: Calendar): Boolean {
+        if (config.optBoolean("allDay")) return true
+        val slots = weekSlots(config) ?: return true
         val minute = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-        val allowed = config.optBoolean("allDay") || (if (start < end) minute in start until end else if (start > end) minute >= start || minute < end else false)
-        if (!allowed) {
-            if (minute >= start) cal.add(Calendar.DAY_OF_YEAR, 1)
-            cal.set(Calendar.HOUR_OF_DAY, start / 60); cal.set(Calendar.MINUTE, start % 60)
+        return slots[dayIndex(config, cal)].getOrNull(minute / 30) == '1'
+    }
+
+    private fun inWindow(config: JSONObject): Boolean = allowedAt(config, Calendar.getInstance())
+
+    private fun nextAvailable(config: JSONObject, tomorrow: Boolean): Long {
+        val base = Calendar.getInstance()
+        if (tomorrow) {
+            base.add(Calendar.DAY_OF_YEAR, 1)
+            base.set(Calendar.HOUR_OF_DAY, 0); base.set(Calendar.MINUTE, 0)
         }
-        return cal.timeInMillis
+        base.set(Calendar.SECOND, 0); base.set(Calendar.MILLISECOND, 0)
+        if (config.optBoolean("allDay")) return base.timeInMillis
+        val slots = weekSlots(config) ?: return base.timeInMillis
+        val now = System.currentTimeMillis()
+        for (offset in 0..8) {
+            val day = (base.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, offset)
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }
+            val index = dayIndex(config, day)
+            for (slot in 0 until 48) {
+                if (slots[index][slot] != '1') continue
+                val candidate = (day.clone() as Calendar).apply {
+                    set(Calendar.HOUR_OF_DAY, slot / 2); set(Calendar.MINUTE, (slot % 2) * 30)
+                }.timeInMillis
+                if (candidate > now) return candidate
+            }
+        }
+        return base.timeInMillis
     }
 
     /**
@@ -56,8 +79,60 @@ class LearningEngine(private val store: LocalStore) {
      *  allow   —— 只在这段时间内可以使用（原有行为，时段外锁定）
      *  control —— 只在这段时间内需要先答题；时段外完全不管控、不计时（例如白天老人看电视）
      */
-    private fun freeNow(c: JSONObject): Boolean =
+    private fun scheduleFree(c: JSONObject): Boolean =
         c.optString("scheduleMode", "allow") == "control" && !c.optBoolean("allDay") && !inWindow(c)
+
+    /**
+     * 家长遥控（实时生效，GateService 每秒检查一次）：
+     *  unlock —— 临时解锁 N 分钟：不答题、不扣时长，到点自动恢复规则（大人自己看电视）
+     *  lock   —— 立即锁定：不论余额与时段都显示锁定页，直到家长解除或到达设定的时间
+     * 剩余时间同时记录墙上时间和开机计时：同一次开机内以开机计时为准，孩子改系统时间不能延长解锁。
+     */
+    @Synchronized
+    fun override(): JSONObject? {
+        val raw = store.get("remote_override").takeIf { it.isNotEmpty() } ?: return null
+        val o = try { JSONObject(raw) } catch (_: Exception) { store.set("remote_override", ""); return null }
+        val until = o.optLong("until")
+        if (until == 0L) return o.put("remainingSeconds", -1)          // 锁定且未设结束时间
+        val left = if (o.optInt("boot", -2) == bootCount()) o.optLong("untilElapsed") - android.os.SystemClock.elapsedRealtime()
+            else until - System.currentTimeMillis()
+        if (left <= 0) {
+            store.set("remote_override", "")
+            store.logEvent("remote", JSONObject().put("action", "expired").put("mode", o.optString("mode")))
+            return null
+        }
+        return o.put("remainingSeconds", (left + 999) / 1000)
+    }
+
+    @Synchronized
+    fun remote(action: String, minutes: Int, source: String): JSONObject {
+        when (action) {
+            "cancel" -> store.set("remote_override", "")
+            "unlock", "lock" -> {
+                require(action == "lock" || minutes in 1..24 * 60) { "解锁时长需要 1 分钟到 24 小时" }
+                require(minutes in 0..7 * 24 * 60) { "锁定时长不正确" }
+                val ms = minutes * 60000L
+                store.set("remote_override", JSONObject().put("mode", action).put("minutes", minutes)
+                    .put("at", System.currentTimeMillis()).put("source", source).put("boot", bootCount())
+                    .put("until", if (ms == 0L) 0L else System.currentTimeMillis() + ms)
+                    .put("untilElapsed", if (ms == 0L) 0L else android.os.SystemClock.elapsedRealtime() + ms).toString())
+            }
+            else -> throw IllegalArgumentException("未知操作")
+        }
+        flushUsage()
+        store.logEvent("remote", JSONObject().put("action", action).put("minutes", minutes).put("source", source))
+        return status()
+    }
+
+    private fun bootCount(): Int = try {
+        android.provider.Settings.Global.getInt(DeviceRuntime.appContext.contentResolver, "boot_count", -1)
+    } catch (_: Throwable) { -1 }
+
+    private fun freeNow(c: JSONObject): Boolean {
+        val o = override()
+        if (o != null) return o.optString("mode") == "unlock"
+        return scheduleFree(c)
+    }
 
     @Synchronized
     fun status(): JSONObject {
@@ -66,8 +141,10 @@ class LearningEngine(private val store: LocalStore) {
         val remaining = number("credit_ms")
         val used = number("used_ms")
         val rounds = store.roundsDoneToday()
+        val o = override()
         val free = freeNow(c)
         val reason = when {
+            o?.optString("mode") == "lock" -> "locked"
             free -> ""
             used >= c.getLong("dailyMinutes") * 60000 -> "quota"
             remaining <= 0 && rounds >= c.getInt("roundsPerDay") -> "rounds"
@@ -75,11 +152,12 @@ class LearningEngine(private val store: LocalStore) {
             remaining > 0 -> ""
             else -> "timeup"
         }
-        val nextAt = if (reason in listOf("quota", "rounds", "schedule")) nextAvailable(c, reason != "schedule") else 0L
+        val nextAt = if (reason == "locked") o?.optLong("until") ?: 0L
+            else if (reason in listOf("quota", "rounds", "schedule")) nextAvailable(c, reason != "schedule") else 0L
         return JSONObject().put("remainingSeconds", remaining / 1000).put("usedMinutes", used / 60000.0)
             .put("extraPool", number("extra_pool")).put("wrongProgress", number("wrong_progress"))
             .put("nextAvailableAt", nextAt).put("free", free)
-            .put("roundsDoneToday", rounds).put("reason", reason).put("awaitingReview", active()?.has("pendingReview") == true)
+            .put("roundsDoneToday", rounds).put("reason", reason).put("override", o ?: JSONObject.NULL).put("awaitingReview", active()?.has("pendingReview") == true)
     }
 
     private var pendingUsageMs = 0L
@@ -136,6 +214,9 @@ class LearningEngine(private val store: LocalStore) {
     fun start(): JSONObject {
         val st = status()
         val c = store.config()
+        if (st.getString("reason") == "locked") return JSONObject().put("blocked", "locked").put("status", st)
+        if (st.optBoolean("free") && c.getString("playMode") != "practice")
+            return JSONObject().put("free", true).put("status", st)
         val feedbackId = store.get("review_feedback")
         val feedback = feedbackId.takeIf { it.isNotEmpty() }?.let { store.review(it) }
         if (feedback?.optString("state") == "graded") return JSONObject().put("reviewed", true).put("status", st)
@@ -143,8 +224,6 @@ class LearningEngine(private val store: LocalStore) {
             .put("feedback", feedback.optString("feedback")).put("result", feedback.getJSONObject("result"))
         if (c.getString("playMode") != "practice" && st.getString("reason") in listOf("quota", "rounds", "schedule"))
             return JSONObject().put("blocked", st.getString("reason")).put("status", st)
-        if (st.optBoolean("free") && c.getString("playMode") != "practice")
-            return JSONObject().put("free", true).put("status", st)
         if (st.optLong("remainingSeconds") > 0 && c.getString("playMode") != "practice")
             return JSONObject().put("watching", true).put("status", st)
         var round = active()

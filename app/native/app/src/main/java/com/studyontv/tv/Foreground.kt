@@ -20,6 +20,7 @@ object Foreground {
     }
     fun update(pkg: String?) { if (!pkg.isNullOrEmpty()) lastPackage = pkg }
     fun clearExternal() { lastPackage = null }
+    fun learningActivity(): android.app.Activity? = ownActivity?.get()?.takeIf { it is MainActivity }
 
     private val launcherPackages = setOf(
         "com.android.tv.launcher", "com.google.android.tvlauncher", "com.google.android.apps.tv.launcherx",

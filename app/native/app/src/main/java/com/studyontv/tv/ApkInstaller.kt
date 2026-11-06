@@ -42,7 +42,7 @@ object ApkInstaller {
         if (archive.versionCode <= current.versionCode) { lastError = "安装包版本不比当前新"; return false }
         val mine = signatures(ctx, current)
         val theirs = signatures(ctx, archive)
-        if (mine.isNotEmpty() && theirs.isNotEmpty() && mine.intersect(theirs).isEmpty()) { lastError = "安装包签名与当前版本不一致，已拒绝"; return false }
+        if (mine.isEmpty() || theirs.isEmpty() || mine.intersect(theirs).isEmpty()) { lastError = "安装包签名与当前版本不一致，已拒绝"; return false }
         return true
     }
 
@@ -68,11 +68,13 @@ object ApkInstaller {
         val partial = File(dir(ctx), "update.pending.apk")
         var conn: HttpURLConnection? = null
         try {
-            conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            val resolved = if (Pgyer.isPage(url)) Pgyer.downloadUrl(url) else url
+            conn = (URL(resolved).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 8000
                 readTimeout = 15000
                 instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "StudyOnTV-Updater")
+                setRequestProperty("User-Agent", Pgyer.USER_AGENT)
+                if (Pgyer.isPage(url)) setRequestProperty("Referer", url)
             }
             if (conn.responseCode !in 200..299) { lastError = "下载失败（HTTP ${conn.responseCode}）"; return null }
             val total = conn.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L

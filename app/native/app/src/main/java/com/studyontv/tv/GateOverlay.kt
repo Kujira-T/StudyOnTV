@@ -27,6 +27,8 @@ class GateOverlay(
     private var currentReason = ""
     private val remote = RemoteKeys { Bridge().openParent() }
     val isShowing: Boolean get() = attached
+    var lastError: String = ""
+        private set
 
     fun show(reason: String): Boolean {
         if (attached) return true
@@ -52,10 +54,12 @@ class GateOverlay(
             view.visibility = View.VISIBLE
             manager.addView(view, params)
             attached = true
+            lastError = ""
             view.requestFocus()
             MediaPause.pause(context)
             true
         } catch (e: Exception) {
+            lastError = e.javaClass.simpleName + ": " + (e.message ?: "")
             destroy()
             false
         }
@@ -107,6 +111,13 @@ class GateOverlay(
             handler.post {
                 web?.let { InputSupport.openText(context, it, draft, prompt) }
                 if (InputSupport.active) suspend()
+            }
+        }
+        @JavascriptInterface fun backToQuiz() {
+            handler.post {
+                context.startActivity(Intent(context, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                hide()
             }
         }
         @JavascriptInterface fun updateInfo(): String = ""
