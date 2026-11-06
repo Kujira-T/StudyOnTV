@@ -247,7 +247,7 @@
     show('lock'); icon($('lockIcon'), 'check'); $('lockTitle').textContent = '答案已保存';
     $('lockDesc').textContent = '等待家长或 AI 批改，通过后继续任务';
     $('lockNote').textContent = '';
-    $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="retry">查看批改结果</button>';
+    $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="retry">查看批改结果</button><button class="btn btn-ghost focusable" data-action="skip-review">先跳过这题</button>';
     focusDefault();
   }
   function lock(reason) {
@@ -374,6 +374,7 @@
     if (action === 'permissions' || action === 'password') nativeCall(action === 'permissions' ? 'openPermissions' : 'changePassword');
     if (action === 'clear-drawing') { state.draft.drawing = ''; renderQuestion(); }
     if (action === 'retry') start();
+    if (action === 'skip-review') { request('/api/quiz/skip', {}, function (error, result) { if (error) { toast(error); return; } state.awaiting = false; state.reviewed = false; state.busy = false; start(); }); }
     if (action === 'return-learning') nativeCall('backToQuiz');
     if (action === 'home') nativeCall('exitToLauncher');
     if (action === 'quiz') { if (state.screen === 'pair') nativeCall('backToQuiz'); else start(); }

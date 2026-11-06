@@ -136,6 +136,31 @@ class GateService : Service() {
         }
     }
 
+    private fun checkOverlayPermission() {
+        val p = getSharedPreferences("sotv", MODE_PRIVATE)
+        val granted = GateOverlay.canDraw(this)
+        if (granted) {
+            if (!p.getBoolean("overlay_was_granted", false)) p.edit().putBoolean("overlay_was_granted", true).apply()
+            return
+        }
+        if (!p.getBoolean("overlay_was_granted", false)) return
+        p.edit().putBoolean("overlay_was_granted", false).apply()
+        Diag.warn("Gate", "overlay permission was revoked by system")
+        try {
+            val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            val channelId = "sotv_gate_alert"
+            if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(
+                NotificationChannel(channelId, "学习提醒", NotificationManager.IMPORTANCE_HIGH))
+            val pi = PendingIntent.getActivity(this, 2, Intent(this, OnboardingActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, channelId) else Notification.Builder(this)
+            manager.notify(1003, builder.setContentTitle("悬浮窗权限被系统收回")
+                .setContentText("到时间可能无法自动弹出学习页，点此重新授权；开启无障碍可作为兜底")
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentIntent(pi)
+                .setAutoCancel(true).setOnlyAlertOnce(true).build())
+        } catch (e: Exception) { Diag.error("Gate", "cannot notify overlay revoked", e) }
+    }
+
     private fun notifyGateFallback(reason: String) {
         try {
             val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -181,6 +206,7 @@ class GateService : Service() {
         if (Build.VERSION.SDK_INT >= 34) startForeground(1001, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         else startForeground(1001, notification)
         MediaPause.recover(this)
+        checkOverlayPermission()
         Diag.info("Service", "GateService started via=$startVia")
         Watchdog.serviceStarted(this, startVia)
         Watchdog.schedule(this)

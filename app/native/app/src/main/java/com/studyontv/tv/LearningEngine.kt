@@ -261,10 +261,29 @@ class LearningEngine(private val store: LocalStore) {
         return JSONObject().put("ok", true).put("status", status())
     }
 
+    /** 孩子不想继续等 AI/家长批改时，放弃这道题的批改并进入下一题。 */
+    @Synchronized
+    fun skipPending(): JSONObject {
+        val round = active() ?: return JSONObject().put("error", "round_missing")
+        val id = round.optString("pendingReview")
+        if (id.isEmpty()) return JSONObject().put("pending", false).put("status", status())
+        store.review(id)?.let {
+            it.put("state", "skipped").put("feedback", "孩子选择先跳过，等待家长处理").put("skippedAt", System.currentTimeMillis())
+            store.saveReview(it)
+        }
+        round.remove("pendingReview")
+        nextQuestion(round)
+        store.set("active_round", round.toString())
+        store.logEvent("review_skipped", JSONObject().put("id", id))
+        Diag.warn("Quiz", "review skipped id=$id")
+        return publicRound(round)
+    }
+
     @Synchronized
     fun grade(reviewId: String, score: Double, feedback: String, source: String): JSONObject {
         require(score.isFinite() && score in 0.0..100.0) { "分数需要在 0–100 之间" }
         val review = store.review(reviewId) ?: throw IllegalArgumentException("待批题目不存在")
+        require(review.getString("state") != "skipped") { "这道题已被跳过，不再批改" }
         if (review.getString("state") == "graded") return review
         val settings = JSONObject(store.get("grading_settings", "{}"))
         val threshold = settings.optDouble("passScore", 60.0)

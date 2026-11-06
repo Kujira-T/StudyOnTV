@@ -304,6 +304,10 @@ class LanServer(
                 if (!deviceAccess) return json(out, 403, err("device_only"))
                 return json(out, 200, DeviceRuntime.learning.acknowledgeReview(JSONObject(body).getString("reviewId")))
             }
+            path == "/api/quiz/skip" && method == "POST" -> {
+                if (!deviceAccess) return json(out, 403, err("device_only"))
+                return json(out, 200, DeviceRuntime.learning.skipPending())
+            }
             path == "/api/quiz/answer" && method == "POST" -> {
                 if (!deviceAccess) return json(out, 403, err("device_only"))
                 val result = DeviceRuntime.learning.answer(JSONObject(body))
