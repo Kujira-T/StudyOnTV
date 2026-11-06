@@ -19,6 +19,9 @@ class LearningEngine(private val store: LocalStore) {
             put("usage_day", current)
             put("credit_ms", 0)
             put("used_ms", 0)
+            // 每天重置时，把"默认免费时长"存入 free_quota_ms（和答题奖励分开记）
+            val freeMin = store.config().optLong("dailyFreeMinutes", 0L)
+            put("free_quota_ms", freeMin * 60000L)
         }
     }
 
@@ -143,9 +146,11 @@ class LearningEngine(private val store: LocalStore) {
         val rounds = store.roundsDoneToday()
         val o = override()
         val free = freeNow(c)
+        val freeQuota = number("free_quota_ms")
         val reason = when {
             o?.optString("mode") == "lock" -> "locked"
             free -> ""
+            freeQuota > 0 -> ""   // 每日默认免费时长还有余额，放行
             used >= c.getLong("dailyMinutes") * 60000 -> "quota"
             remaining <= 0 && rounds >= c.getInt("roundsPerDay") -> "rounds"
             c.optString("scheduleMode", "allow") != "control" && !inWindow(c) -> "schedule"
@@ -157,6 +162,7 @@ class LearningEngine(private val store: LocalStore) {
         return JSONObject().put("remainingSeconds", remaining / 1000).put("usedMinutes", used / 60000.0)
             .put("extraPool", number("extra_pool")).put("wrongProgress", number("wrong_progress"))
             .put("nextAvailableAt", nextAt).put("free", free)
+            .put("freeQuotaSeconds", freeQuota / 1000)
             .put("roundsDoneToday", rounds).put("reason", reason).put("override", o ?: JSONObject.NULL).put("awaitingReview", active()?.has("pendingReview") == true)
     }
 
@@ -167,6 +173,14 @@ class LearningEngine(private val store: LocalStore) {
     fun consume(milliseconds: Long) {
         day()
         if (freeNow(store.config())) { flushUsage(); return }   // 自由时段不扣时长
+        // 每日默认免费时长：先消耗，耗完才扣答题奖励
+        val freeQuotaNow = number("free_quota_ms")
+        if (freeQuotaNow > 0) {
+            val freeConsumed = milliseconds.coerceIn(0, freeQuotaNow)
+            put("free_quota_ms", freeQuotaNow - freeConsumed)
+            put("used_ms", number("used_ms") + freeConsumed)
+            flushUsage(); return
+        }
         val amount = min(milliseconds.coerceIn(0, 5000), min(number("credit_ms"),
             (store.config().getLong("dailyMinutes") * 60000 - number("used_ms")).coerceAtLeast(0)))
         if (amount <= 0) { flushUsage(); return }

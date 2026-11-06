@@ -109,6 +109,7 @@
     $('qDots').textContent = round.mode === 'streak' ? '连续答对 ' + round.streak + ' 题' : '';
     var qLength = (item.q || '').length;
     $('qText').className = 'question' + (qLength > 120 ? ' longer' : qLength > 56 ? ' long' : '');
+    try { if (isTv() && window.localStorage.getItem('sotv_tts') === '1') { nativeCall('readAloud', [item.q]); } } catch (e) {}
     var options = $('qOptions'); options.innerHTML = '';
     var longest = 0;
     (item.a || []).forEach(function (value) { longest = Math.max(longest, String(value).length); });
@@ -133,7 +134,8 @@
         var image = document.createElement('img'); image.className = 'drawing-preview'; image.src = state.draft.drawing; options.appendChild(image);
         var clear = document.createElement('button'); clear.className = 'btn btn-ghost focusable'; clear.setAttribute('data-action', 'clear-drawing'); clear.textContent = '清除手写'; options.appendChild(clear);
       }
-      addSubmit(options, '提交答案');
+      if (isTv()) { var readBtn = document.createElement('button'); readBtn.className = 'btn btn-ghost focusable'; readBtn.setAttribute('data-action', 'read-aloud'); readBtn.textContent = '朗读题目'; options.appendChild(readBtn); }
+    addSubmit(options, '提交答案');
     } else {
       item.a.forEach(function (value, index) {
         var button = document.createElement('button'); button.className = 'option focusable';
@@ -374,6 +376,7 @@
     if (action === 'update-close') { $('updateTip').className = 'update-tip'; try { if (window.currentUpdate) window.localStorage.setItem('sotv_update_dismissed', window.currentUpdate.latest); } catch (e) {} if (el.classList.contains('focused')) focusDefault(); }
     if (action === 'permissions' || action === 'password') nativeCall(action === 'permissions' ? 'openPermissions' : 'changePassword');
     if (action === 'clear-drawing') { state.draft.drawing = ''; renderQuestion(); }
+    if (action === 'read-aloud') { try { nativeCall('readAloud', [state.round ? state.round.question.q : '']); } catch(e) {} }
     if (action === 'retry') start();
     if (action === 'skip-review') { request('/api/quiz/skip', {}, function (error, result) { if (error) { toast(error); return; } state.awaiting = false; state.reviewed = false; state.busy = false; start(); }); }
     if (action === 'return-learning') nativeCall('backToQuiz');

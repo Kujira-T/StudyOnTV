@@ -187,8 +187,17 @@ class LanServer(
                 }
             }
             path == "/api/questions" && method == "GET" -> {
-                val items = store.questions(q["subject"], q["level"], q["limit"]?.toIntOrNull() ?: 500)
+                val all = q["all"] == "1"
+                val items = store.questions(q["subject"], q["level"], q["limit"]?.toIntOrNull() ?: 500,
+                    enabledOnly = !all, sortBy = q["sort"] ?: "random")
                 return json(out, 200, JSONObject().put("items", items))
+            }
+            path == "/api/questions/pause" && method == "POST" -> {
+                val ids = JSONObject(body).getJSONArray("ids")
+                val enabled = JSONObject(body).optBoolean("enabled", false)
+                require(ids.length() in 1..5000) { "请选择题目" }
+                return json(out, 200, JSONObject().put("ok", true).put("updated",
+                    store.setEnabled((0 until ids.length()).map { ids.getString(it) }, enabled)))
             }
             path == "/api/questions" && method == "POST" -> {
                 val payload = try { JSONObject(body) } catch (e: Exception) { return json(out, 200, err("bad_json")) }
