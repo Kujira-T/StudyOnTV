@@ -131,7 +131,7 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
     fun config(): JSONObject {
         val defaults = JSONObject().put("dailyMinutes", 40).put("sessionMinutes", 10)
             .put("questionsPerRound", 5).put("roundsPerDay", 3).put("passRatio", 0.6)
-            .put("windowStart", "18:30").put("windowEnd", "20:00").put("allDay", false).put("spacedRepetitionEnabled", false)
+            .put("windowStart", "18:30").put("windowEnd", "20:00").put("allDay", true).put("spacedRepetitionEnabled", false)
             .put("playMode", "round").put("extraEnabled", true)
             .put("wrongThreshold", 3).put("extraQuestions", 2)
             .put("difficultyRewardEnabled", false)
@@ -156,9 +156,9 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
             ?: if (saved.has("allDay") || saved.has("windowStart") || saved.has("windowEnd")) {
                 val oldDefault = !defaults.optBoolean("allDay") &&
                     defaults.optString("windowStart") == "18:30" && defaults.optString("windowEnd") == "20:00"
-                if (oldDefault) weekendDefault()
+                if (oldDefault) { defaults.put("allDay", true); fullWeek() }
                 else weekFromWindow(defaults.optBoolean("allDay"), defaults.optString("windowStart"), defaults.optString("windowEnd"))
-            } else weekendDefault()
+            } else fullWeek()
         defaults.put("weekSlots", migrated)
         if (defaults.optString("holidayMode") !in listOf("sunday", "normal")) defaults.put("holidayMode", "sunday")
             .put("quizSubjects", JSONArray()).put("quizLevels", JSONArray())
@@ -178,7 +178,9 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "studyontv.db", n
         return JSONArray().apply { repeat(7) { put(day) } }
     }
 
-    /** 新安装的默认：只在周末 09:00–20:00 可用 */
+    private fun fullWeek(): JSONArray = JSONArray().apply { repeat(7) { put("1".repeat(48)) } }
+
+    /** 旧版默认周末时段，仅用于迁移判断 */
     private fun weekendDefault(): JSONArray {
         val empty = "0".repeat(48)
         val weekend = weekFromWindow(false, "09:00", "20:00").optString(0)
