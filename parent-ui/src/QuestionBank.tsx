@@ -23,7 +23,7 @@ function Stars({n}:{n:number}){return <span className="whitespace-nowrap text-[1
 
 export default function QuestionBank({sessionId}:{sessionId:number}){
  const client=useQueryClient();
- const query=useQuery({queryKey:['bank',sessionId],queryFn:()=>api('/api/questions?limit=5000')});
+ const query=useQuery({queryKey:['bank',sessionId],queryFn:()=>api('/api/questions?limit=5000&enabledOnly=false')});
  const questions=query.data?.items||[];
  const subjects:any[]=[...new Set(questions.map((q:any)=>q.subject).filter(Boolean))].sort();
  const levels:any[]=[...new Set(questions.map((q:any)=>q.level).filter(Boolean))].sort();
@@ -39,7 +39,7 @@ export default function QuestionBank({sessionId}:{sessionId:number}){
  const configured=!!(grading.data?.endpoint&&grading.data?.model);
  const aiProvider=(grading.data?.providers||[]).find((p:any)=>p.id===grading.data?.provider)?.name||'AI';
 
- const filtered=useMemo(()=>{const k=search.trim().toLowerCase();const list=questions.filter((q:any)=>(typeFilter==='all'||(q.type||'single')===typeFilter)&&(starFilter==='all'||String(q.difficulty||2)===starFilter)&&(subjectFilter==='all'||(q.subject||'')===subjectFilter)&&(levelFilter==='all'||(q.level||'')===levelFilter)&&(!k||(q.q+' '+answerOf(q)+' '+q.tip+' '+(q.subject||'')+' '+(q.level||'')).toLowerCase().includes(k)));
+ const filtered=useMemo(()=>{const k=search.trim().toLowerCase();const list=questions.filter((q:any)=>(showAll||q.enabled!==false)&&(typeFilter==='all'||(q.type||'single')===typeFilter)&&(starFilter==='all'||String(q.difficulty||2)===starFilter)&&(subjectFilter==='all'||(q.subject||'')===subjectFilter)&&(levelFilter==='all'||(q.level||'')===levelFilter)&&(!k||(q.q+' '+answerOf(q)+' '+q.tip+' '+(q.subject||'')+' '+(q.level||'')).toLowerCase().includes(k)));
   if(sort==='diff')return [...list].sort((a:any,b:any)=>(b.difficulty||2)-(a.difficulty||2));
   if(sort==='type')return [...list].sort((a:any,b:any)=>String(a.type).localeCompare(String(b.type))||(b.difficulty||2)-(a.difficulty||2));
   return list;
@@ -66,22 +66,7 @@ export default function QuestionBank({sessionId}:{sessionId:number}){
  function importNow(){try{const parsed=JSON.parse(text.replace(/^\uFEFF/,''));const items=Array.isArray(parsed)?parsed:parsed.items||[parsed];if(!items.length)return toast.error('题库不能为空');importingMutation.mutate(items.map((q:any)=>({...q,subject:q.subject||importSubject.trim(),level:q.level||importLevel.trim()})));}catch{toast.error('JSON 格式有误');}}
  function openAi(){setAiTab('agent');setAiError('');setAiOpen(true);}
  async function generate(){if(!aiForm.topic.trim())return toast.error('请填写出题范围');if(!Object.values(aiForm.types).some(Boolean))return toast.error('至少选择一种题型');setAiLoading(true);setAiError('');try{const result=await api('/api/questions/generate','POST',{topic:aiForm.topic,types:Object.keys(aiForm.types).filter(k=>aiForm.types[k]),count:aiForm.count,difficulty:aiForm.difficulty,extra:aiForm.extra,withTip:aiForm.withTip,skipDuplicates:aiForm.skipDuplicates},90000);setAiItems((result.items||[]).map((q:any)=>({...q,include:true})));const skipped=result.duplicates?`，跳过 ${result.duplicates} 道重复题`:'';toast.success(`生成 ${result.items.length} 题${skipped}`);}catch(e:any){setAiError(e.message);}finally{setAiLoading(false);}}
- const copy=async(value:string)=>{
- try{await navigator.clipboard.writeText(value);toast.success('已复制');return;}catch{}
- // HTTP 非安全上下文 fallback：textarea 必须可见才能 select，用 1px 透明元素
- try{
-  const ta=document.createElement('textarea');
-  ta.value=value;
-  Object.assign(ta.style,{position:'fixed',top:'0',left:'0',width:'1px',height:'1px',padding:'0',border:'none',outline:'none',boxShadow:'none',background:'transparent',fontSize:'12pt'});
-  document.body.appendChild(ta);
-  ta.focus();ta.select();
-  ta.setSelectionRange(0,ta.value.length);
-  const ok=document.execCommand('copy');
-  document.body.removeChild(ta);
-  if(ok){toast.success('已复制');return;}
- }catch{}
- toast.error('复制失败，请手动复制');
-};
+ const copy=async(value:string)=>{try{await navigator.clipboard.writeText(value);toast.success('已复制');return;}catch{}const ta=document.createElement('textarea');ta.value=value;ta.style.cssText='position:fixed;top:50%;left:50%;width:200px;height:60px;opacity:0.01;z-index:99999;';document.body.appendChild(ta);ta.focus();ta.select();let ok=false;try{ok=document.execCommand('copy');}catch{}document.body.removeChild(ta);if(ok)toast.success('已复制');else toast.error('复制失败，请手动复制');};
  const base=location.origin;
  const agentPrompt=`请给「题了个题」出 ${aiForm.count} 道题，范围：${aiForm.topic||'（填写出题范围）'}。\n只返回 JSON：{"items":[{"type":"single","q":"题干","a":["选项A","选项B"],"k":1,"difficulty":2,"tip":"解析"}]}\ntype 可用 single / multiple（correctIndices）/ boolean（a 固定 ["正确","错误"]，k 0 或 1）/ text（answers）/ subjective（modelAnswer、rubric）。\n难度 1-5，题干不要 HTML。`;
  const jsonPrompt=agentPrompt+`\n\n写好后再调用：POST ${base}/api/questions\n请求头：Content-Type: application/json、Authorization: Bearer <管理令牌>\n请求体：{"items":[题目数组]}`;
@@ -101,7 +86,7 @@ export default function QuestionBank({sessionId}:{sessionId:number}){
    <select aria-label="难度筛选" className="h-9 rounded-lg border bg-background px-3 text-sm" value={starFilter} onChange={e=>{setStarFilter(e.target.value);setPage(0);}}><option value="all">全部难度</option>{[5,4,3,2,1].map(n=><option key={n} value={String(n)}>{'★'.repeat(n)}</option>)}</select>
    <select aria-label="科目筛选" className="h-9 rounded-lg border bg-background px-3 text-sm" value={subjectFilter} onChange={e=>{setSubjectFilter(e.target.value);setPage(0);}}><option value="all">全部科目</option>{subjects.map(v=><option key={v} value={v}>{v}</option>)}</select>
    <select aria-label="年级筛选" className="h-9 rounded-lg border bg-background px-3 text-sm" value={levelFilter} onChange={e=>{setLevelFilter(e.target.value);setPage(0);}}><option value="all">全部年级</option>{levels.map(v=><option key={v} value={v}>{v}</option>)}</select>
-   <Button size="sm" variant={showAll?"secondary":"ghost"} onClick={()=>setShowAll(v=>!v)}>{showAll?"含已暂停":"只看启用"}</Button><select aria-label="排序方式" className="h-9 rounded-lg border bg-background px-3 text-sm" value={sort} onChange={e=>setSort(e.target.value)}><option value="default">默认顺序</option><option value="diff">难度从高到低</option><option value="type">按题型</option></select>
+   <Button size="sm" variant={showAll?"secondary":"ghost"} onClick={()=>setShowAll(v=>!v)}>{showAll?"全部（含已暂停）":"仅显示启用"}</Button><select aria-label="排序方式" className="h-9 rounded-lg border bg-background px-3 text-sm" value={sort} onChange={e=>setSort(e.target.value)}><option value="default">默认顺序</option><option value="diff">难度从高到低</option><option value="type">按题型</option></select>
   </div>
 
   <div className="mt-3 rounded-xl border bg-card overflow-hidden">
