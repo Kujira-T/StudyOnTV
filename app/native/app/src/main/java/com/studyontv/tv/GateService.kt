@@ -225,11 +225,23 @@ class GateService : Service() {
         } catch (e: Exception) { android.util.Log.w("StudyOnTV", "Cannot post fallback notification", e) }
     }
 
-    /** 系统解析出来的 HOME 包 */
-    private val launcherPackage: String? by lazy {
-        try {
+    /**
+     * 系统解析出来的 HOME 包。
+     *
+     * 不能长期缓存：用户可能先装应用再换默认桌面，部分固件也会在升级后改 HOME 包名，
+     * 一旦缓存了旧值，「桌面包在播放」的判定就永远不会命中（issue #66）。
+     * 这里只做 10 秒短缓存，和 exempt() 里每秒 resolveActivity 的开销相当。
+     */
+    private var launcherPkgCache: String? = null
+    private var launcherPkgAt = 0L
+    private fun launcherPackage(): String? {
+        val now = SystemClock.elapsedRealtime()
+        if (now - launcherPkgAt < 10_000) return launcherPkgCache
+        launcherPkgCache = try {
             packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)?.activityInfo?.packageName
         } catch (_: Exception) { null }
+        launcherPkgAt = now
+        return launcherPkgCache
     }
 
     /**
@@ -237,7 +249,7 @@ class GateService : Service() {
      * 已知的系统桌面（Foreground.isLauncher）永远不算，避免在桌面挂着就被计时。
      */
     private fun launcherPlaying(pkg: String): Boolean {
-        if (pkg != launcherPackage) return false
+        if (pkg != launcherPackage()) return false
         if (Foreground.isLauncher(pkg)) return false
         return Playback.hasActive(this)
     }

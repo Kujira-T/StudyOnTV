@@ -40,11 +40,12 @@ export default function QuestionBank({sessionId}:{sessionId:number}){
  const configured=!!(grading.data?.endpoint&&grading.data?.model);
  const aiProvider=(grading.data?.providers||[]).find((p:any)=>p.id===grading.data?.provider)?.name||'AI';
 
+ const pausedCount=questions.filter((q:any)=>q.enabled===false).length;
  const filtered=useMemo(()=>{const k=search.trim().toLowerCase();const list=questions.filter((q:any)=>(showAll||q.enabled!==false)&&(typeFilter==='all'||(q.type||'single')===typeFilter)&&(starFilter==='all'||String(q.difficulty||2)===starFilter)&&(subjectFilter==='all'||(q.subject||'')===subjectFilter)&&(levelFilter==='all'||(q.level||'')===levelFilter)&&(!k||(q.q+' '+answerOf(q)+' '+q.tip+' '+(q.subject||'')+' '+(q.level||'')).toLowerCase().includes(k)));
   if(sort==='diff')return [...list].sort((a:any,b:any)=>(b.difficulty||2)-(a.difficulty||2));
   if(sort==='type')return [...list].sort((a:any,b:any)=>String(a.type).localeCompare(String(b.type))||(b.difficulty||2)-(a.difficulty||2));
   return list;
- },[questions,search,typeFilter,starFilter,subjectFilter,levelFilter,sort]);
+ },[questions,search,typeFilter,starFilter,subjectFilter,levelFilter,sort,showAll]);
  const shown=filtered.slice(page*PAGE,page*PAGE+PAGE);
  const current=drawer?questions.find((q:any)=>q.id===drawer):null;
  const drawerIndex=current?filtered.findIndex((q:any)=>q.id===current.id):-1;
@@ -124,7 +125,7 @@ export default function QuestionBank({sessionId}:{sessionId:number}){
 
    {!shown.length&&<div className="p-12 text-center text-sm text-muted-foreground">{query.isLoading?'加载题库…':<>没有符合条件的题目。<button className="ml-1 underline underline-offset-4" onClick={()=>{setSearch('');setTypeFilter('all');setStarFilter('all');}}>清除筛选</button></>}</div>}
 
-   <div className="flex flex-wrap items-center gap-3 border-t px-3 py-2.5 text-xs text-muted-foreground"><span>共 <b className="text-foreground">{questions.length}</b> 题{filtered.length!==questions.length&&<> · 筛选出 <b className="text-foreground">{filtered.length}</b> 题</>}</span><div className="ml-auto flex items-center gap-1"><Button size="sm" variant="outline" disabled={page===0} onClick={()=>setPage(p=>p-1)}>上一页</Button><span className="min-w-14 text-center">{page+1} / {Math.max(1,Math.ceil(filtered.length/PAGE))}</span><Button size="sm" variant="outline" disabled={(page+1)*PAGE>=filtered.length} onClick={()=>setPage(p=>p+1)}>下一页</Button></div></div>
+   <div className="flex flex-wrap items-center gap-3 border-t px-3 py-2.5 text-xs text-muted-foreground"><span>共 <b className="text-foreground">{filtered.length}</b> 题{pausedCount>0&&!showAll&&<>（另有 {pausedCount} 题已暂停，点「全部（含已暂停）」查看）</>}</span><div className="ml-auto flex items-center gap-1"><Button size="sm" variant="outline" disabled={page===0} onClick={()=>setPage(p=>p-1)}>上一页</Button><span className="min-w-14 text-center">{page+1} / {Math.max(1,Math.ceil(filtered.length/PAGE))}</span><Button size="sm" variant="outline" disabled={(page+1)*PAGE>=filtered.length} onClick={()=>setPage(p=>p+1)}>下一页</Button></div></div>
   </div>
 
   {current&&<>

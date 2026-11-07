@@ -19,7 +19,7 @@ class CountdownOverlay(private val context: Context) {
     private var view: TextView? = null
     private var attached = false
     private var blinkOn = true
-    private var lastUrgent = false
+    private var lastUrgent: Boolean? = null
     var lastError: String = ""
         private set
 
@@ -28,12 +28,16 @@ class CountdownOverlay(private val context: Context) {
     private fun chip(): TextView = view ?: TextView(context).apply {
         textSize = 15f
         setPadding(dp(14), dp(6), dp(14), dp(6))
+        // 部分电视桌面/播放器底色很亮，加一层阴影保证任何画面下都看得清
+        setShadowLayer(4f, 0f, 1f, Color.argb(200, 0, 0, 0))
         view = this
     }
 
     private fun paint(urgent: Boolean) {
         val chip = view ?: return
-        if (urgent == lastUrgent) return
+        // lastUrgent 用 null 表示“还没画过”：否则首次调用（urgent=false）会直接 return，
+        // 文字颜色和背板永远不生效，角标会变成默认灰字、无背板，在暗色画面上看不清。
+        if (lastUrgent == urgent) return
         lastUrgent = urgent
         chip.setTextColor(if (urgent) Color.rgb(255, 92, 92) else Color.WHITE)
         chip.background = GradientDrawable().apply {
