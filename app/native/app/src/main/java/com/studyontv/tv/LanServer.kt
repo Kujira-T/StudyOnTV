@@ -187,7 +187,10 @@ class LanServer(
                 }
             }
             path == "/api/questions" && method == "GET" -> {
-                val all = q["all"] == "1"
+                // all=1 与 enabledOnly=false 等价：都表示「包含已暂停的题目」。
+                // 管理端用 enabledOnly=false 拿全量再在本地按「仅显示启用」过滤，
+                // 否则暂停的题在页面上完全看不到（用户以为题目丢了）。
+                val all = q["all"] == "1" || q["enabledOnly"] == "false"
                 val items = store.questions(q["subject"], q["level"], q["limit"]?.toIntOrNull() ?: 500,
                     enabledOnly = !all, sortBy = q["sort"] ?: "random")
                 return json(out, 200, JSONObject().put("items", items))
