@@ -24,9 +24,13 @@ object Foreground {
 
     private val launcherPackages = setOf(
         "com.android.tv.launcher", "com.google.android.tvlauncher", "com.google.android.apps.tv.launcherx",
-        "com.android.launcher", "com.android.launcher3", "com.tcl.launcher", "com.mitv.tvhome",
+        "com.android.launcher", "com.android.launcher3", "com.tcl.launcher", "com.tcl.tv.launcher", "com.mitv.tvhome",
         "com.hisense.tv.launcher", "com.google.android.apps.nexuslauncher", "com.miui.home",
-        "com.sec.android.app.launcher", "com.huawei.android.launcher", "com.oppo.launcher", "com.vivo.launcher"
+        "com.sec.android.app.launcher", "com.huawei.android.launcher", "com.oppo.launcher", "com.vivo.launcher",
+        // 其余常见电视桌面，避免「桌面包在播放」的播放判定在真正的桌面上误触发
+        "com.skyworth.launcher", "com.coocaa.launcher", "com.changhong.launcher", "com.philips.launcher",
+        "com.sony.dtv.launcher", "com.mediatek.launcher", "com.amlogic.launcher", "com.dangbei.launcher",
+        "com.hisense.vidaa.launcher", "com.tcl.tv.launcherx", "com.ktc.launcher", "com.haier.launcher"
     )
     fun isLauncher(pkg: String?): Boolean = pkg != null && launcherPackages.contains(pkg)
 

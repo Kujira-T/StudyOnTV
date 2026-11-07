@@ -32,6 +32,20 @@ open class DeviceBridge(protected val activity: Activity, private val connection
         activity.runOnUiThread { activity.startActivity(Intent(activity, OnboardingActivity::class.java)) }
     }
 
+    /** 网页在 HTTP 局域网环境下拿不到 Clipboard API，交给原生写剪贴板最稳 */
+    @JavascriptInterface
+    fun copyText(value: String): Boolean {
+        if (!connectionAllowed) return false
+        return try {
+            val manager = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager ?: return false
+            manager.setPrimaryClip(android.content.ClipData.newPlainText("题了个题", value))
+            true
+        } catch (e: Exception) {
+            Diag.warn("UI", "copyText failed: ${e.message}")
+            false
+        }
+    }
+
     @JavascriptInterface
     fun changePassword() {
         if (!connectionAllowed) return
@@ -58,19 +72,11 @@ open class DeviceBridge(protected val activity: Activity, private val connection
         if (status.getString("reason").isNotEmpty() || (status.optLong("remainingSeconds") <= 0 && !status.optBoolean("free"))) return
         activity.runOnUiThread {
             GateService.hideGates()
-            // 答题结束后优先 moveTaskToBack，让之前的应用（如腾讯视频）重新回到前台。
-            // 仅在 GateActivity 场景（全屏管控页）才主动跳桌面，因为它本身就是管控页不应保留在栈里。
-            if (activity is GateActivity) {
-                activity.finish()
-                try {
-                    activity.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                } catch (e: Exception) {
-                    Diag.error("UI", "HOME intent rejected", e)
-                }
-            } else {
-                // MainActivity / 普通场景：退到后台，之前的视频 App 自动回到前台
-                activity.moveTaskToBack(true)
-            }
+            // 答题结束回到「上一个任务」，绝不能主动跳桌面，否则正在播放的视频会被顶掉（#54 / #63）。
+            // GateActivity 是独立任务（singleInstance + 独立 taskAffinity），finish 之后系统会自动
+            // 把下面的任务（云视听 / 腾讯视频）带回前台；主界面则直接把整个任务压到后台。
+            if (activity is GateActivity) activity.finish()
+            else activity.moveTaskToBack(true)
         }
     }
 

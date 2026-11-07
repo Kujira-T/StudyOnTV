@@ -466,7 +466,9 @@
       });
     }, 2000);
   }
-  window.SOTV_INPUT = function (result) {
+  window.SOTV_INPUT = function (result, token) {
+    // 原生侧靠这个标记确认注入成功，失败会重试（部分电视 WebView 切回来时 JS 尚未就绪）
+    if (token) window.__sotvAck = token;
     if (!state.round) { window._pendingInput = result; return; }
     state.draft = { nonce: state.round.nonce, text: result.text || '', drawing: result.drawing || '' };
     window._pendingInput = null;
