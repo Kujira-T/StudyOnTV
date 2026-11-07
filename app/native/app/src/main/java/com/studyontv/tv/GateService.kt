@@ -65,6 +65,8 @@ class GateService : Service() {
         val awake = power.isInteractive && !locked
         val monitoring = canOverlay || WatchAccessibilityService.connected || Foreground.hasUsageAccess(this)
         val pkg = Foreground.current(this)
+        // 记住孩子正在用的应用，解锁后用它「回到原画面」（issue #68 / #74）
+        if (pkg != null && pkg != packageName && !exempt(pkg, false)) rememberActive(pkg)
         // With only overlay permission, use awake time outside our own activities.
         // 桌面包名 == 首页包名的机型（海信 VIDAA 聚好看）：看片时前台仍是“桌面”包，
         // 此时用系统播放状态兜底，否则永远不扣时间、到点也不弹题（issue #66）。
@@ -316,6 +318,14 @@ class GateService : Service() {
     companion object {
         private var instance: GateService? = null
         private var startVia = "app"
+
+        /**
+         * 孩子最近真正在用的受控应用。答题解锁后用它把画面还原，
+         * 而不是让系统跳回桌面（issue #68 小米电视4 / #74 Sony BRAVIA）。
+         */
+        @Volatile private var lastActivePackage: String? = null
+        fun rememberActive(pkg: String) { lastActivePackage = pkg }
+        fun rememberedActive(): String? = lastActivePackage
         val running: Boolean get() = instance != null
 
         fun start(context: Context) {

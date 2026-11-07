@@ -80,6 +80,33 @@ open class DeviceBridge(protected val activity: Activity, private val connection
         }
     }
 
+    /**
+     * 答题解锁后回到解题前的画面。
+     *
+     * 先收起管控页并把自己的任务退到后台，正常情况下之前那个应用就会回到前台；
+     * 如果几百毫秒后前台仍是我们自己或桌面（部分机型会把答题页当成独立任务，
+     * finish 之后露出的是桌面），再显式把记下的应用拉起来。
+     */
+    @JavascriptInterface
+    fun resumePrevious() {
+        // 不检查 connectionAllowed：和学习页 / GateActivity 共用同一个桥，
+        // 管控页里 connectionAllowed 是 false，检查了会导致解锁后无法还原画面。
+        // 这个调用只会收起管控页并恢复自己记下的受控应用，不暴露任何设备信息。
+        activity.runOnUiThread {
+            GateService.hideGates()
+            val target = GateService.rememberedActive()
+            if (activity is GateActivity) activity.finish() else activity.moveTaskToBack(true)
+            if (target == null || target == activity.packageName || Foreground.isLauncher(target)) return@runOnUiThread
+            val decor = activity.window?.decorView ?: return@runOnUiThread
+            decor.postDelayed({
+                val now = try { Foreground.current(activity) } catch (_: Exception) { null }
+                if (now == null || now == activity.packageName || Foreground.isLauncher(now)) launchPackage(target)
+            }, 700)
+        }
+    }
+
+    private fun launchPackage(pkg: String): Boolean = launchPackage(activity, pkg)
+
     @JavascriptInterface
     fun backToQuiz() {
         activity.runOnUiThread {
@@ -130,6 +157,20 @@ open class DeviceBridge(protected val activity: Activity, private val connection
     }
 
     companion object {
+        /** 把记下的受控应用拉回前台；失败只记日志，不影响管控 */
+        fun launchPackage(context: android.content.Context, pkg: String): Boolean = try {
+            val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+            if (intent == null) false else {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                context.startActivity(intent)
+                Diag.info("UI", "resumed previous app $pkg")
+                true
+            }
+        } catch (e: Exception) {
+            Diag.warn("UI", "resume $pkg failed: ${e.message}")
+            false
+        }
+
         fun isTv(context: Context): Boolean = BuildConfig.FLAVOR == "tv"
     }
 }
