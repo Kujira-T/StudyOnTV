@@ -96,6 +96,8 @@ class LearningEngine(private val store: LocalStore) {
         val raw = store.get("remote_override").takeIf { it.isNotEmpty() } ?: return null
         val o = try { JSONObject(raw) } catch (_: Exception) { store.set("remote_override", ""); return null }
         val until = o.optLong("until")
+        val mode = o.optString("mode")
+        if (mode == "indefinite") return o.put("remainingSeconds", -1) // 无限时，永不过期
         if (until == 0L) return o.put("remainingSeconds", -1)          // 锁定且未设结束时间
         val left = if (o.optInt("boot", -2) == bootCount()) o.optLong("untilElapsed") - android.os.SystemClock.elapsedRealtime()
             else until - System.currentTimeMillis()
@@ -111,6 +113,12 @@ class LearningEngine(private val store: LocalStore) {
     fun remote(action: String, minutes: Int, source: String): JSONObject {
         when (action) {
             "cancel" -> store.set("remote_override", "")
+            "indefinite" -> {
+                // 无限时解锁：管控完全关闭，直到家长手动取消
+                store.set("remote_override", JSONObject().put("mode", "indefinite").put("minutes", 0)
+                    .put("at", System.currentTimeMillis()).put("source", source).put("boot", bootCount())
+                    .put("until", 0L).put("untilElapsed", 0L).toString())
+            }
             "unlock", "lock" -> {
                 require(action == "lock" || minutes in 1..24 * 60) { "解锁时长需要 1 分钟到 24 小时" }
                 require(minutes in 0..7 * 24 * 60) { "锁定时长不正确" }
@@ -133,7 +141,7 @@ class LearningEngine(private val store: LocalStore) {
 
     private fun freeNow(c: JSONObject): Boolean {
         val o = override()
-        if (o != null) return o.optString("mode") == "unlock"
+        if (o != null) return o.optString("mode") in listOf("unlock", "indefinite")
         return scheduleFree(c)
     }
 
