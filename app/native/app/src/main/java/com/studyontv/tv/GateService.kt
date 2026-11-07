@@ -66,7 +66,13 @@ class GateService : Service() {
         val monitoring = canOverlay || WatchAccessibilityService.connected || Foreground.hasUsageAccess(this)
         val pkg = Foreground.current(this)
         // With only overlay permission, use awake time outside our own activities.
-        val active = awake && monitoring && if (pkg == null) canOverlay else !exempt(pkg)
+        // 桌面包名 == 首页包名的机型（海信 VIDAA 聚好看）：看片时前台仍是“桌面”包，
+        // 此时用系统播放状态兜底，否则永远不扣时间、到点也不弹题（issue #66）。
+        val active = awake && monitoring && when {
+            pkg == null -> canOverlay
+            !exempt(pkg) -> true
+            else -> launcherPlaying(pkg)
+        }
         val protecting = awake && monitoring && if (pkg == null) canOverlay else !exempt(pkg, false)
         val reason = status.getString("reason")
         // 解锁 / 任务完成后确保释放所有音频持有者，避免悬浮页收起后仍残留静音或音频焦点。
@@ -219,6 +225,23 @@ class GateService : Service() {
         } catch (e: Exception) { android.util.Log.w("StudyOnTV", "Cannot post fallback notification", e) }
     }
 
+    /** 系统解析出来的 HOME 包 */
+    private val launcherPackage: String? by lazy {
+        try {
+            packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)?.activityInfo?.packageName
+        } catch (_: Exception) { null }
+    }
+
+    /**
+     * 只有「厂商把播放器塞进了 HOME 包」这一个特殊情况才把桌面算成在用，
+     * 已知的系统桌面（Foreground.isLauncher）永远不算，避免在桌面挂着就被计时。
+     */
+    private fun launcherPlaying(pkg: String): Boolean {
+        if (pkg != launcherPackage) return false
+        if (Foreground.isLauncher(pkg)) return false
+        return Playback.hasActive(this)
+    }
+
     private fun isSettings(pkg: String): Boolean = pkg == systemSettingsPackage ||
         pkg in setOf("com.android.settings", "com.android.tv.settings", "com.google.android.tv.settings")
 
@@ -252,6 +275,7 @@ class GateService : Service() {
         Diag.info("Service", "GateService started via=$startVia")
         Watchdog.serviceStarted(this, startVia)
         Watchdog.schedule(this)
+        Watchdog.scheduleAlarm(this)
         handler.post(tick)
         handler.postDelayed(mediaTick, 1000)
     }
