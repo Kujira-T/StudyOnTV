@@ -34,6 +34,7 @@ class GateService : Service() {
     }
     private var anchor: View? = null
     private lateinit var overlay: GateOverlay
+    private val countdown by lazy { CountdownOverlay(this) }
     private val tick = object : Runnable {
         override fun run() {
             try { checkForeground() } catch (e: Exception) { android.util.Log.e("StudyOnTV", "Screen time check failed", e) }
@@ -55,6 +56,7 @@ class GateService : Service() {
         if (InputSupport.active) {
             wasUsing = false
             overlay.suspend(); WatchAccessibilityService.suspendGate()
+            countdown.hide()
             return
         }
         if (now < settingsUntil) { wasUsing = false; hideAll(); return }
@@ -112,6 +114,15 @@ class GateService : Service() {
                 }
             }
         }
+        updateCountdown(status, active, free, canOverlay)
+    }
+
+    /** 看电视期间在画面右上角显示剩余分钟数；不在看电视 / 拦截中 / 自由时段 / 家长解锁时隐藏 */
+    private fun updateCountdown(status: org.json.JSONObject, active: Boolean, free: Boolean, canOverlay: Boolean) {
+        val seconds = status.optLong("remainingSeconds") + status.optLong("freeQuotaSeconds")
+        val show = canOverlay && active && !free && status.optString("reason").isEmpty() &&
+            status.optJSONObject("override") == null && seconds > 0 && !hasGate()
+        if (show) countdown.update(seconds) else countdown.hide()
     }
 
     private fun updateAnchor(allowed: Boolean) {
@@ -131,7 +142,7 @@ class GateService : Service() {
         }
     }
 
-    private fun hideAll() { overlay.hide(); WatchAccessibilityService.hideGate() }
+    private fun hideAll() { overlay.hide(); WatchAccessibilityService.hideGate(); countdown.hide() }
 
     private val mediaTick = object : Runnable {
         override fun run() {
@@ -259,7 +270,7 @@ class GateService : Service() {
         if (Prefs.onboarded(this)) scheduleRestart(this, 5000)
         handler.removeCallbacks(tick); handler.removeCallbacks(mediaTick)
         MediaPause.release(this)
-        overlay.destroy(); WatchAccessibilityService.hideGate(); updateAnchor(false)
+        overlay.destroy(); WatchAccessibilityService.hideGate(); countdown.destroy(); updateAnchor(false)
         instance = null
         Prefs.setServiceRunning(this, false)
         Diag.info("Service", "GateService destroyed")
