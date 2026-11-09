@@ -176,7 +176,9 @@ class LanServer(
             }
             path == "/api/config" && method == "PUT" -> {
                 val input = try { JSONObject(body) } catch (e: Exception) { return json(out, 200, err("bad_json")) }
-                return json(out, 200, JSONObject().put("config", store.saveConfig(input)))
+                val saved = store.saveConfig(input)
+                DeviceRuntime.learning.onConfigChanged()   // 免费时长等当日额度立即生效，不等跨天
+                return json(out, 200, JSONObject().put("config", saved))
             }
             path == "/api/questions/generate" && method == "POST" -> {
                 val input = try { JSONObject(body.ifEmpty { "{}" }) } catch (e: Exception) { return json(out, 200, err("bad_json")) }

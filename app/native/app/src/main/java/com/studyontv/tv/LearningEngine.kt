@@ -22,7 +22,16 @@ class LearningEngine(private val store: LocalStore) {
             // 每天重置时，把"默认免费时长"存入 free_quota_ms（和答题奖励分开记）
             val freeMin = store.config().optLong("dailyFreeMinutes", 0L)
             put("free_quota_ms", freeMin * 60000L)
+            put("free_used_ms", 0)
         }
+    }
+
+    /** 当天配置变更（PUT /api/config）后重算免费额度：新额度减去当天已用掉的免费时长，家长改完立即生效 */
+    @Synchronized
+    fun onConfigChanged() {
+        day()
+        val freeMin = store.config().optLong("dailyFreeMinutes", 0L)
+        put("free_quota_ms", (freeMin * 60000L - number("free_used_ms")).coerceAtLeast(0L))
     }
 
     private fun weekSlots(config: JSONObject): List<String>? {
@@ -188,6 +197,7 @@ class LearningEngine(private val store: LocalStore) {
         if (freeQuotaNow > 0) {
             val freeConsumed = milliseconds.coerceIn(0, freeQuotaNow)
             put("free_quota_ms", freeQuotaNow - freeConsumed)
+            put("free_used_ms", number("free_used_ms") + freeConsumed)
             put("used_ms", number("used_ms") + freeConsumed)
             flushUsage(); return
         }
