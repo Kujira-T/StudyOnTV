@@ -4,7 +4,11 @@ import math from '../../data/banks/math-100.json';
 let config={...defaults,version:1};
 let learning:any={usedMinutes:18,remainingSeconds:720,roundsDoneToday:1,extraPool:2,reason:'',free:false,override:null};
 let questions:any[]=math.items.slice(0,12).map((q,i)=>({...q,id:'preview-'+i,type:'single',subject:'数学',level:'二年级',difficulty:1,enabled:true,a:q.a.map(String)}));
-let device:any={name:'客厅电视 · 开发预览',flavor:'tv',version:'0.3.10',ip:'127.0.0.1',port:5173,buglyConsent:false,monitor:{service:true,overlay:true,usage:true,accessibility:true}};
+let device:any={name:'客厅电视 · 开发预览',flavor:'tv',version:'0.3.10',ip:'127.0.0.1',port:5173,buglyConsent:false,
+ monitor:{service:true,overlay:true,usage:true,accessibility:true,accessibilityEnabled:true,gate:false,lastTickSeconds:1,lastError:''},
+ autostart:{known:true,ok:true,pending:false,via:'boot',startedAfterSeconds:12,bootBroadcast:true,uptimeMinutes:320,accessibility:true},
+ keepalive:{ignoringBattery:true,notifications:true,usbDebugging:false,developerOptions:false,sdk:34,manufacturer:'Xiaomi',brand:'Xiaomi',model:'Mi TV 6',android:'12',
+  brandTip:'小米电视：设置 → 应用 → 应用管理 → 题了个题 → 自启动，开启；省电策略设为「无限制」'}};
 let grading:any={mode:'parent',passScore:60,provider:'',endpoint:'',model:'',hasKey:false,providers:[]};
 let integration:any={enabled:false,read:true,control:false,hasToken:false};
 const update={current:'0.3.10',version:'0.3.10',checking:false,hasUpdate:false,mirrors:[],log:[],api:''};

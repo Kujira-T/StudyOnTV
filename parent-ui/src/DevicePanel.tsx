@@ -5,22 +5,17 @@ import {toast} from 'sonner';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Textarea} from '@/components/ui/textarea';
-import {Badge} from '@/components/ui/badge';
 import {Switch} from '@/components/ui/switch';
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter} from '@/components/ui/dialog';
 import {api} from './api';
 import {copyText} from './lib/clipboard';
 import {Panel,Row} from './RulesPage';
 import {Field} from './QuestionBank';
+import {keepAliveSummary} from './keepalive';
 
-const VIA:Record<string,string>={boot:'开机广播',accessibility:'无障碍服务',job:'系统定时任务',update:'应用更新',app:'打开应用'};
-function autostartNote(a:any){if(a.pending)return '刚安装或更新，重启一次设备后可以判断开机自启是否生效';if(!a.known)return '这台设备不提供开机次数，无法自动判断；建议开启无障碍服务';
- const how=a.via?`本次开机后 ${a.startedAfterSeconds>=0?Math.round(a.startedAfterSeconds/60)+' 分钟由':'由'}${VIA[a.via]||a.via}启动`:'本次开机后尚未记录';
- return a.ok?how+(a.accessibility?' · 无障碍服务已开启，可在开机后自动恢复':''):how+'。系统可能拦截了开机自启：请在电视 / 手机的「自启动管理」「应用启动管理」里允许本应用，并开启无障碍服务（最可靠）';}
 const time=(ms:number)=>ms?new Date(ms).toLocaleString('zh-CN',{hour12:false}):'尚未检查';
-function monitorNote(m:any){if(!m?.service)return '管控服务没有运行：重新打开应用，或在系统设置里允许自启动 / 后台运行';const missing:string[]=[];if(!m.overlay)missing.push('悬浮窗');if(!m.usage&&!m.accessibility)missing.push('使用情况访问或无障碍');return missing.length?`缺少${missing.join('、')}，到时间可能无法自动弹出学习页`:'权限齐全，计时和拦截可以正常工作';}
 
-export default function DevicePanel({sessionId,onPasswordChanged,only}:{sessionId:number,onPasswordChanged:()=>void,only:'device'|'update'|'security'|'integration'}){
+export default function DevicePanel({sessionId,onPasswordChanged,only,onOpenKeepAlive}:{sessionId:number,onPasswordChanged:()=>void,only:'device'|'update'|'security'|'integration',onOpenKeepAlive:()=>void}){
  const client=useQueryClient();
  const device=useQuery({queryKey:['device',sessionId],queryFn:()=>api('/api/device')});
  const [polling,setPolling]=useState(false);
@@ -52,12 +47,16 @@ export default function DevicePanel({sessionId,onPasswordChanged,only}:{sessionI
  const password=useMutation({mutationFn:()=>api('/api/password','POST',{current:pw.current,password:pw.next}),onSuccess:()=>{toast.success('管理密码已修改，请用新密码重新登录');setPw({current:'',next:'',confirm:''});onPasswordChanged();},onError:(e:any)=>toast.error(e.message)});
  function changePassword(){if(pw.next.length<6||pw.next.length>64)return toast.error('新密码需要 6–64 位');if(pw.next!==pw.confirm)return toast.error('两次输入的新密码不一致');password.mutate();}
  const u=update.data;
+ const keepalive=device.data?.keepalive?keepAliveSummary(device.data):null;
  return <>
  <div className="sections">
   {only==='device'&&<Panel title="设备" icon={MonitorSmartphone} description={device.data?`${device.data.flavor==='tv'?'电视版':'手机 / 平板版'} v${device.data.version} · ${device.data.ip||'未连接 WiFi'}:${device.data.port}`:undefined}>
-   {device.data?.autostart&&<Row title="开机自启" note={autostartNote(device.data.autostart)}><span className={'text-sm '+(device.data.autostart.ok?'text-green-600 dark:text-green-400':device.data.autostart.pending?'text-muted-foreground':'text-amber-600 dark:text-amber-400')}>{!device.data.autostart.known?'无法判断':device.data.autostart.ok?'正常':device.data.autostart.pending?'待重启确认':'可能被拦截'}</span></Row>}
-   {device.data?.monitor&&<Row title="管控能力" note={monitorNote(device.data.monitor)}><div className="flex flex-wrap gap-1.5">{[['服务',device.data.monitor.service],['悬浮窗',device.data.monitor.overlay],['使用情况',device.data.monitor.usage],['无障碍',device.data.monitor.accessibility]].map(([label,ok]:any)=><Badge key={label} variant="outline" className={ok?'text-green-700 dark:text-green-400 border-green-600/30':'text-amber-700 dark:text-amber-400 border-amber-600/30'}>{ok?'✓':'✗'} {label}</Badge>)}</div></Row>}
-   {!!device.data?.monitor?.lastError&&<Row title="最近一次弹窗失败" note={device.data.monitor.lastError}><span className="text-xs text-muted-foreground">可反馈给开发者</span></Row>}
+   <Row title="后台保活" note="服务、权限和开机自启逐项检查，并按品牌给出设置步骤">
+    <div className="flex items-center gap-2">
+     {keepalive&&<span className={'text-sm '+(keepalive.level==='ok'?'text-green-600 dark:text-green-400':keepalive.level==='warn'?'text-amber-600 dark:text-amber-400':'text-muted-foreground')}>{keepalive.text}</span>}
+     <Button size="sm" variant="outline" onClick={onOpenKeepAlive}>查看自检</Button>
+    </div>
+   </Row>
    <Row title="防卸载" note="开启后孩子无法直接删除应用">{device.data?.uninstallProtected
     ?<Button size="sm" variant="outline" className="text-destructive border-destructive/40 hover:bg-destructive/10" onClick={()=>{if(confirm('关闭后孩子可以直接卸载应用，确认吗？'))disableGuard.mutate()}}>关闭防卸载</Button>
     :<span className="text-sm text-muted-foreground">未开启（在被控设备权限设置里开启）</span>}
