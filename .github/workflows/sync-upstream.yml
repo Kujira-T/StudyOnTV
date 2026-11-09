@@ -1,0 +1,35 @@
+name: 自动同步原作者更新 (Sync Upstream)
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # 每天北京时间 12:00 自动检查并同步
+  workflow_dispatch:      # 允许随时在 GitHub 网页一键手动触发同步
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sync:
+    name: Sync from chadyi/StudyOnTV
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 同步原作者最新代码
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "正在检查并同步上游原作者 chadyi/StudyOnTV 的最新更新..."
+          gh repo sync ${{ github.repository }} -b main --force
+          echo "同步完成！"
+
+      - name: 触发电视端 APK 重新打包
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run "build-tv.yml" || echo "Build workflow triggered or already queued"
