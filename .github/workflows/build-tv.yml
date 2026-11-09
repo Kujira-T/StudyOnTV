@@ -34,8 +34,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 配置 Gradle 环境
+      - name: 配置 Gradle 环境 (8.12)
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.12'
 
       - name: 生成本地签名配置
         working-directory: app/native
