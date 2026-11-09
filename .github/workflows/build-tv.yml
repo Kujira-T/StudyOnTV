@@ -42,7 +42,7 @@ jobs:
       - name: 生成本地签名配置
         working-directory: app/native
         run: |
-          keytool -genkey -v -keystore release.jks -alias tvrelease -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=StudyOnTV, OU=TV, O=Kujira, L=City, ST=State, C=CN"
+          keytool -genkey -v -keystore app/release.jks -alias tvrelease -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=StudyOnTV, OU=TV, O=Kujira, L=City, ST=State, C=CN"
           echo "KEYSTORE_PATH=release.jks" >> local.properties
           echo "KEYSTORE_PASS=123456" >> local.properties
           echo "KEY_ALIAS=tvrelease" >> local.properties
