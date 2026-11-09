@@ -59,7 +59,7 @@ class GateService : Service() {
             countdown.hide()
             return
         }
-        if (now < settingsUntil) { wasUsing = false; hideAll(); return }
+        if (now < settingsUntil) { wasUsing = false; hideAll(); countdown.hide(); return }
         val power = getSystemService(POWER_SERVICE) as PowerManager
         val locked = (getSystemService(KEYGUARD_SERVICE) as KeyguardManager).isKeyguardLocked
         val awake = power.isInteractive && !locked
@@ -125,7 +125,7 @@ class GateService : Service() {
         updateCountdown(status, active, free, canOverlay)
     }
 
-    /** 看电视期间在画面右上角显示剩余分钟数；不在看电视 / 拦截中 / 自由时段 / 家长解锁时隐藏 */
+    /** Shows remaining minutes in the top-right corner while watching; hidden otherwise (not watching, gate visible, free period, parent unlock). */
     private fun updateCountdown(status: org.json.JSONObject, active: Boolean, free: Boolean, canOverlay: Boolean) {
         val seconds = status.optLong("remainingSeconds") + status.optLong("freeQuotaSeconds")
         val show = canOverlay && active && !free && status.optString("reason").isEmpty() &&
@@ -150,7 +150,10 @@ class GateService : Service() {
         }
     }
 
-    private fun hideAll() { overlay.hide(); WatchAccessibilityService.hideGate(); countdown.hide() }
+    // Only dismisses the gate (overlay window / accessibility layer). The countdown badge is
+    // driven separately by updateCountdown() every tick; hiding it here as well would remove
+    // and re-add its window on every tick, which is what caused the per-second flicker.
+    private fun hideAll() { overlay.hide(); WatchAccessibilityService.hideGate() }
 
     private val mediaTick = object : Runnable {
         override fun run() {
