@@ -290,7 +290,7 @@ class LanServer(
             path == "/api/device" && method == "GET" -> return json(out, 200, JSONObject().put("name", Prefs.deviceName(context))
                 .put("version", BuildConfig.VERSION_NAME).put("flavor", BuildConfig.FLAVOR).put("ip", localIp() ?: "").put("port", boundPort)
                 .put("uninstallProtected", UninstallGuard.active(context)).put("autostart", Watchdog.report(context)).put("monitor", GateService.diagnostics(context))
-                .put("buglyConsent", Prefs.buglyConsent(context)))
+                .put("keepalive", KeepAlive.report(context)).put("buglyConsent", Prefs.buglyConsent(context)))
             path == "/api/device/bugly" && method == "PUT" -> {
                 val enabled = JSONObject(body).optBoolean("enabled")
                 if (enabled) BuglyInit.initWithConsent(context) else BuglyInit.revoke(context)
