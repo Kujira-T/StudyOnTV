@@ -1,0 +1,73 @@
+name: 编译电视端 APK (Build TV APK)
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["自动同步原作者更新 (Sync Upstream)"]
+    types:
+      - completed
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'shared/**'
+      - 'admin/**'
+      - 'data/**'
+      - '.github/workflows/build-tv.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android TV APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 配置 Gradle 环境
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: 生成本地签名配置
+        working-directory: app/native
+        run: |
+          keytool -genkey -v -keystore release.jks -alias tvrelease -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=StudyOnTV, OU=TV, O=Kujira, L=City, ST=State, C=CN"
+          echo "KEYSTORE_PATH=release.jks" >> local.properties
+          echo "KEYSTORE_PASS=123456" >> local.properties
+          echo "KEY_ALIAS=tvrelease" >> local.properties
+          echo "KEY_PASS=123456" >> local.properties
+
+      - name: 编译电视端 APK
+        working-directory: app/native
+        run: |
+          gradle assembleTvRelease --no-daemon
+          mkdir -p ../../output
+          cp app/build/outputs/apk/tv/release/*.apk ../../output/StudyOnTV-Android-TV.apk
+
+      - name: 上传构建产物 (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: StudyOnTV-Android-TV
+          path: output/StudyOnTV-Android-TV.apk
+
+      - name: 发布至 Release (自动更新最新版)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "StudyOnTV 最新构建版 (TV)"
+          body: |
+            自动编译完成的最新版 StudyOnTV 电视端安装包。
+            - 包含上游原作者的最新代码与题库。
+            - 编译时间: ${{ github.event.head_commit.timestamp || github.event.created_at }}
+          files: output/StudyOnTV-Android-TV.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
