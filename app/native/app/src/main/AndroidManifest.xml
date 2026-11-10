@@ -56,6 +56,8 @@
             android:taskAffinity="com.studyontv.tv.gate"
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
 
+        <activity android:name=".EducationalVideoActivity" android:exported="false" android:configChanges="orientation|screenSize" />
+
         <activity
             android:name=".UpdateActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|navigation"

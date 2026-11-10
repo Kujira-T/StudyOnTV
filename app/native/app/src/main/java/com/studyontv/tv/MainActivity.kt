@@ -17,6 +17,9 @@ open class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 进程被杀 / 升级后先恢复上次遗留的媒体流静音，避免电视一直无声（issue #116）。
+        // 放在配置检查之前：即使还没完成设置，也不该让整机保持静音。
+        MediaPause.recover(this)
         if (!AdminAuth.configured(this)) {
             startActivity(Intent(this, ParentActivity::class.java)); finish(); return
         }
@@ -28,7 +31,7 @@ open class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (DeviceBridge.isTv(this)) requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         val reason = intent.getStringExtra("reason")
-        page = if (this is GateActivity && reason != null && reason != "timeup") "lock?reason=$reason" else "quiz"
+        page = if (this is GateActivity && reason != null && reason !in listOf("timeup", "feedback")) "lock?reason=$reason" else "quiz"
         createWeb()
         GateService.start(this)
     }
@@ -84,10 +87,11 @@ open class MainActivity : Activity() {
     override fun onStop() {
         super.onStop()
         MediaPause.release(this)
+        SpeechReader.stop()
         // 正在等原生输入页（填空题）回传答案时不能销毁 WebView：
-        // TvTextInputActivity 会把结果写回当前 WebView，destroy() 后 JS 上下文消失，
-        // AnswerInput 的重投全部落在死实例上，表现为「点确定回到题目还是空的」（#64 / #84）。
-        val awaitingInput = AnswerInput.active
+        // TvTextInputActivity / InputSupport 会把结果写回当前 WebView，destroy() 后 JS 上下文消失，
+        // 重投全部落在死实例上，表现为「点确定回到题目还是空的」（#64 / #77 / #80 / #84）。
+        val awaitingInput = InputSupport.active || AnswerInput.active
         if (DeviceBridge.isTv(this) && ::web.isInitialized && !webReleased && !awaitingInput) {
             (web.parent as? android.view.ViewGroup)?.removeView(web)
             web.destroy()
@@ -99,7 +103,7 @@ open class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         val reason = intent?.getStringExtra("reason")
-        page = if (this is GateActivity && reason != null && reason != "timeup") "lock?reason=$reason" else "quiz"
+        page = if (this is GateActivity && reason != null && reason !in listOf("timeup", "feedback")) "lock?reason=$reason" else "quiz"
         if (::web.isInitialized && !webReleased) {
             web.loadUrl(Prefs.localBase(this) + "#/$page")
             web.evaluateJavascript("window.SOTV_RESUME&&SOTV_RESUME()", null)
@@ -108,6 +112,8 @@ open class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        // 前台重试一次遗留静音恢复（非前台时系统可能拦截音量写入）。
+        MediaPause.recover(this)
         if (Prefs.onboarded(this)) GateService.ensureRunning(this, "app")
         if (this is GateActivity && !DeviceRuntime.learning.status().optBoolean("free")) MediaPause.pause(this)
         if (webReleased) createWeb()
