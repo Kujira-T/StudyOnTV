@@ -15,6 +15,10 @@
 - #102：二维码优先使用物理 Wi-Fi / Ethernet 地址，备用扫描排除常见隧道网卡，系统网络 API 失败时继续备用扫描。
 - #106：AI 连接测试、模型列表请求超时从 10 秒增加至 60 秒；AI 请求超时提示与局域网连接超时区分。尚不能据此认定所有自定义服务均已兼容。
 
+## 最新追加（#122）
+
+- #122：海信 VIDAA 的悬浮窗「存在但看不见」。这台机器的 `Settings.canDrawOverlays()` 与 AppOps 都报不支持，只有 1×1 `addView` 探针成功；全屏悬浮窗加窗成功、SurfaceFlinger 也有 buffer，但被硬件视频层压住，屏幕上仍是视频，`View.isShown` 之类的自检全部正常。新增家长开关「强制使用全屏学习页」，并在「探针权限 + 暂停时确实有音频在播」时自动改走全屏 `GateActivity`；诊断新增 `overlayProbeOnly`、`forceFullscreenGate`、`lastPauseHadAudio`、`fullscreenGateAgeSeconds`，`GatePresentationRegression` 覆盖判定。厂商真机是否同样投影仍需原机确认。
+
 ## 最新追加（#110–#112）
 
 - #110：静音与弹窗改为同源判定。只有确实可见的 Gate（悬浮层 / 无障碍层 / 全屏学习页 / 刚拉起的兜底页）或输入页在前台时才允许持续静音；窗口被系统移除、addView 成功但不可见、弹窗失败时立即解除静音。弹窗失败按 2s→3s→5s→10s 退避重试，失败原因进入诊断和家长通知。已有 `GatePresentationRegression` 覆盖。
