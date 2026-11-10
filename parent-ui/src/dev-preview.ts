@@ -1,4 +1,5 @@
 import {defaults} from './schema';
+import {builtinProviders} from './ai-providers';
 import math from '../../data/banks/math-100.json';
 
 let config={...defaults,version:1};
@@ -9,8 +10,10 @@ let device:any={name:'客厅电视 · 开发预览',flavor:'tv',version:'0.3.10'
  autostart:{known:true,ok:true,pending:false,via:'boot',startedAfterSeconds:12,bootBroadcast:true,uptimeMinutes:320,accessibility:true},
  keepalive:{ignoringBattery:true,notifications:true,usbDebugging:false,developerOptions:false,sdk:34,manufacturer:'Xiaomi',brand:'Xiaomi',model:'Mi TV 6',android:'12',
   brandTip:'小米电视：设置 → 应用 → 应用管理 → 题了个题 → 自启动，开启；省电策略设为「无限制」'}};
-let grading:any={mode:'parent',passScore:60,provider:'',endpoint:'',model:'',hasKey:false,providers:[]};
+let grading:any={mode:'parent',passScore:60,provider:'deepseek',endpoint:'https://api.deepseek.com/v1',model:'deepseek-flash',hasKey:false,providers:builtinProviders};
 let integration:any={enabled:false,read:true,control:false,hasToken:false};
+let speech:any={mode:'system',autoRead:false,azureKeySet:false,aliyunSecretSet:false};
+let automation:any={sources:[],autoAi:false,minimum:30,batch:10,masteryAttempts:5,masteryAccuracy:90,topic:'',running:false,status:{}};
 const update={current:'0.3.10',version:'0.3.10',checking:false,hasUpdate:false,mirrors:[],log:[],api:''};
 
 // In-memory preview data: no device requests or persistent authentication.
@@ -18,6 +21,7 @@ export async function previewApi(path:string,method:string,body:any){
  const route=path.split('?')[0];
  if(route==='/api/state')return structuredClone({config,learning,questions:questions.length,repetition:{studied:8,due:3}});
  if(route==='/api/remote'){
+  if(body.action==='credit'){learning.remainingSeconds=Math.max(0,learning.remainingSeconds+body.minutes*60);learning.todayLimitMinutes=(learning.todayLimitMinutes??config.dailyMinutes)+body.minutes;return structuredClone({learning});}
   learning.override=body.action==='cancel'?null:{mode:body.action,remainingSeconds:(body.minutes||30)*60,at:Date.now()};
   return structuredClone({learning});
  }
@@ -26,6 +30,12 @@ export async function previewApi(path:string,method:string,body:any){
   if(method==='POST'){const items=body.items||[body];for(const item of items){const index=questions.findIndex(q=>q.id===item.id);if(index>=0)questions[index]={...item};else questions.push({...item,id:'preview-'+crypto.randomUUID()});}return{ok:true,added:items.length};}
   return structuredClone({items:questions,total:questions.length});
  }
+ if(route==='/api/speech'){if(method==='PUT'){speech={...speech,...body,azureKeySet:body.clearKeys?false:!!body.azureKey||speech.azureKeySet,aliyunSecretSet:body.clearKeys?false:!!body.aliyunSecret||speech.aliyunSecretSet};delete speech.azureKey;delete speech.aliyunSecret;}return structuredClone(speech);}
+ if(route==='/api/bank-automation'){if(method==='PUT')automation={...automation,...body};return structuredClone(automation);}
+ if(route==='/api/bank-automation/sync'){automation.status={at:Date.now(),ok:true,sources:[]};return structuredClone(automation);}
+ if(route==='/api/questions/clear'){const deleted=questions.length;questions=[];return{deleted};}
+ if(route==='/api/questions/bank'&&method==='DELETE'){const before=questions.length;questions=questions.filter(q=>(q.bank||'默认题库')!==body.bank);return{deleted:before-questions.length};}
+ if(route==='/api/questions/pause'){questions=questions.map(q=>body.ids.includes(q.id)?{...q,enabled:body.enabled}:q);return{updated:body.ids.length};}
  if(route==='/api/questions/delete'){const count=questions.length;questions=questions.filter(q=>!body.ids.includes(q.id));return{deleted:count-questions.length};}
  if(route.startsWith('/api/questions/')&&method==='DELETE'){questions=questions.filter(q=>q.id!==decodeURIComponent(route.split('/').pop()!));return{ok:true};}
  if(route==='/api/device'){if(method==='PUT')device={...device,...body};return structuredClone(device);}

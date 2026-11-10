@@ -45,10 +45,16 @@
     var left = Math.max(0, (c.roundsPerDay || 3) - (st.roundsDoneToday || 0));
     if (st.override && st.override.mode === 'unlock') { $('topPill').textContent = '家长已解锁 · ' + left2(st.override.remainingSeconds); return; }
     if (st.override && st.override.mode === 'indefinite') { $('topPill').textContent = '管控已关闭'; return; }
-    if (st.free) { $('topPill').textContent = '自由时段'; return; }
-    var remSec = st.remainingSeconds || 0;
+    var point = st.activePoint;
+    var pointName = point && point.name ? point.name : '';
+    if (st.free) {
+      if (!pointName) { $('topPill').textContent = '自由时段'; return; }
+      $('topPill').textContent = (point.mode === 'exempt' ? '大人豁免 · ' : '网课时间 · ') + pointName + (point.until ? ' 至 ' + point.until : '');
+      return;
+    }
+    var remSec = (st.remainingSeconds || 0) + (st.freeQuotaSeconds || 0);
     var remStr = remSec > 0 ? (remSec < 3600 ? '剩 ' + Math.ceil(remSec / 60) + ' 分钟' : '剩 ' + Math.floor(remSec / 3600) + ' 小时 ' + Math.ceil((remSec % 3600) / 60) + ' 分') + ' · ' : '';
-    $('topPill').textContent = remStr + '还剩 ' + left + ' 组' + (st.extraPool > 0 ? ' · 加练池 ' + st.extraPool + ' 题' : '');
+    $('topPill').textContent = (pointName ? '网课时间 · ' + pointName + ' 至 ' + (point.until || '') + ' · ' : '') + remStr + '还剩 ' + left + ' 组' + (st.extraPool > 0 ? ' · 加练池 ' + st.extraPool + ' 题' : '');
   }
   function left2(seconds) {
     var m = Math.ceil(seconds / 60);
@@ -56,14 +62,23 @@
   }
   function loadState(callback) {
     request('/api/state', null, function (error, result) {
-      if (!error) { state.config = result.config; state.learning = result.learning; pill(); applyTheme(result.config.theme); }
+      if (!error) { state.config = result.config; state.learning = result.learning; state.speech = result.speech || {}; pill(); applyTheme(result.config.theme); applyFont(); }
       if (callback) callback(error, result);
     });
   }
-  function start() {
+  function applyFont() {
+    var scale = Math.max(75, Math.min(200, +state.config.fontScale || 100));
+    if (state.fontScale === scale) return;
+    document.documentElement.style.fontSize = '';
+    var base = parseFloat(window.getComputedStyle(document.documentElement).fontSize);
+    document.documentElement.style.setProperty('--learn-scale', String(scale / 100));
+    document.documentElement.style.fontSize = (base * scale / 100) + 'px'; state.fontScale = scale;
+  }
+  window.addEventListener('resize', function () { state.fontScale = 0; applyFont(); });
+  function start(level) {
     if (state.busy) return;
     state.busy = true;
-    request('/api/quiz/start', {}, function (error, result) {
+    request('/api/quiz/start', level ? { level: level } : {}, function (error, result) {
       state.busy = false;
       if (error) {
         show('quiz'); $('qText').textContent = error;
@@ -72,6 +87,28 @@
       }
       state.learning = result.status || state.learning;
       pill();
+      if (result.videoLesson) {
+        state.lockReason = state.learning.reason; state.wasFree = !!state.learning.free;
+        show('lock'); icon($('lockIcon'), 'pencil'); $('lockTitle').textContent = '公益视频学习';
+        $('lockDesc').textContent = '完成 ' + Math.ceil(result.videoLesson.remainingSeconds / 60) + ' 分钟观看后领取使用时间';
+        $('lockNote').textContent = '播放暂停时不累计，拖动进度不能跳过学习时长';
+        $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="watch-lesson">开始观看</button>';
+        focusDefault(); return;
+      }
+      if (result.chooseLevel) {
+        state.lockReason = state.learning.reason; state.wasFree = !!state.learning.free;
+        show('lock'); icon($('lockIcon'), 'pencil'); $('lockTitle').textContent = '选择你的年级';
+        $('lockDesc').textContent = '完成这一轮后可以重新选择'; $('lockNote').textContent = ''; $('lockActions').innerHTML = '';
+        result.chooseLevel.forEach(function (value) { var button = document.createElement('button'); button.className = 'btn btn-primary focusable'; button.textContent = value; button.setAttribute('data-action', 'choose-level'); button.setAttribute('data-level', value); $('lockActions').appendChild(button); });
+        focusDefault(); return;
+      }
+      if (result.heldFeedback) {
+        // 兜底：解析内容丢先时不要白屏（主屏会重新取题）
+        if (!result.question) { window.setTimeout(start, 800); return; }
+        state.round = {question:result.question,mode:'round',answered:0,target:1};
+        show('quiz'); renderQuestion(); state.busy = true; state.feedback = result.result; state.feedback.status = result.status;
+        showFeedback(state.feedback, result.question, result.question.type === 'text' || result.question.type === 'subjective'); return;
+      }
       if (result.pending) return pending(result.reviewId);
       if (result.reviewed) return reviewed(result);
       state.awaiting = false; state.reviewed = false;
@@ -99,20 +136,30 @@
       show('quiz'); renderQuestion();
     });
   }
+  // 题库被家长删空 / 答题范围没有题目：给出明确提示并允许重试，绝不能停在旧题上
+  function quizEmpty(message) {
+    state.round = null; state.busy = false;
+    show('quiz');
+    $('qText').textContent = message || '题库为空，请由家长添加题目';
+    $('qOptions').innerHTML = '<button class="btn btn-primary focusable" data-action="retry">重试</button>';
+    focusDefault();
+  }
   function renderQuestion() {
     var round = state.round, item = round.question;
     if (window._pendingInput) { state.draft = { nonce: round.nonce, text: window._pendingInput.text || '', drawing: window._pendingInput.drawing || '' }; window._pendingInput = null; }
     else if (!state.draft || state.draft.nonce !== round.nonce) state.draft = { nonce: round.nonce, text: '', drawing: '' };
     state.selected = [];
     $('qText').textContent = item.q;
-    $('qIndex').textContent = round.mode === 'streak' ? round.streak : round.mode === 'practice' ? round.answered + 1 : Math.min(round.answered + 1, round.target);
+    $('qIndex').textContent = round.mode === 'count' ? round.correct || 0 : round.mode === 'streak' ? round.streak : round.mode === 'practice' ? round.answered + 1 : Math.min(round.answered + 1, round.target);
     $('qTotal').textContent = round.mode === 'practice' ? '题' : '/ ' + round.target;
-    $('qMode').textContent = (round.extra ? '加练任务' : round.mode === 'streak' ? '连续答对' : round.mode === 'practice' ? '自由练习' : '本组任务') + ' · ' + new Array((item.difficulty || 2) + 1).join('★');
+    $('qMode').textContent = (round.extra ? '加练任务' : round.mode === 'streak' ? '连续答对' : round.mode === 'count' ? '答对指定题数' : round.mode === 'practice' ? '自由练习' : '本组任务') + ' · ' + new Array((item.difficulty || 2) + 1).join('★');
     $('qPool').textContent = round.extraPool > 0 ? '加练池还剩 ' + round.extraPool + ' 题' : '';
     $('qDots').textContent = round.mode === 'streak' ? '连续答对 ' + round.streak + ' 题' : '';
     var qLength = (item.q || '').length;
     $('qText').className = 'question' + (qLength > 120 ? ' longer' : qLength > 56 ? ' long' : '');
-    try { if (isTv() && window.localStorage.getItem('sotv_tts') === '1') { nativeCall('readAloud', [item.q]); } } catch (e) {}
+    nativeCall('stopReading');
+    if (state.speech && state.speech.autoRead) nativeCall('readInLanguage', [item.q, item.language || 'zh-CN']);
+    renderMedia(item);
     var options = $('qOptions'); options.innerHTML = '';
     var longest = 0;
     (item.a || []).forEach(function (value) { longest = Math.max(longest, String(value).length); });
@@ -129,15 +176,12 @@
       }
       options.appendChild(input);
       var tools = document.createElement('div'); tools.className = 'input-tools';
-      if (!isTv()) {
-        tools.innerHTML = '<button class="btn btn-ghost focusable" data-action="voice">语音输入</button><button class="btn btn-ghost focusable" data-action="handwrite">手写作答</button>';
-        options.appendChild(tools);
-      }
+      tools.innerHTML = '<button class="btn btn-ghost focusable" data-action="voice">语音输入 / 重录</button>' + (!isTv() ? '<button class="btn btn-ghost focusable" data-action="handwrite">手写作答</button>' : '');
+      options.appendChild(tools);
       if (state.draft.drawing) {
         var image = document.createElement('img'); image.className = 'drawing-preview'; image.src = state.draft.drawing; options.appendChild(image);
         var clear = document.createElement('button'); clear.className = 'btn btn-ghost focusable'; clear.setAttribute('data-action', 'clear-drawing'); clear.textContent = '清除手写'; options.appendChild(clear);
       }
-      if (isTv()) { var readBtn = document.createElement('button'); readBtn.className = 'btn btn-ghost focusable'; readBtn.setAttribute('data-action', 'read-aloud'); readBtn.textContent = '朗读题目'; options.appendChild(readBtn); }
     addSubmit(options, '提交答案');
     } else {
       item.a.forEach(function (value, index) {
@@ -149,8 +193,17 @@
       });
       if (item.type === 'multiple') addSubmit(options, '确认所选答案');
     }
+    var readBtn = document.createElement('button'); readBtn.className = 'btn btn-ghost focusable'; readBtn.setAttribute('data-action', 'read-aloud'); readBtn.textContent = '朗读题目'; options.appendChild(readBtn);
     window.SOTV_MATH($('qText')); window.SOTV_MATH(options);
     focusDefault();
+  }
+  function renderMedia(item) {
+    var box = $('qMedia'); box.innerHTML = '';
+    if (item.image && /^(https?:\/\/|data:image\/)/.test(item.image)) { var image = document.createElement('img'); image.src = item.image; image.alt = '题目配图'; image.className = 'question-media-image'; box.appendChild(image); }
+    if (item.audio && /^https?:\/\//.test(item.audio)) {
+      if (window.SOTVNative) { var play = document.createElement('button'); play.className = 'btn btn-ghost focusable'; play.setAttribute('data-action', 'play-audio'); play.textContent = '播放题目音频'; box.appendChild(play); }
+      else { var audio = document.createElement('audio'); audio.src = item.audio; audio.controls = true; audio.className = 'focusable'; audio.preload = 'none'; box.appendChild(audio); }
+    }
   }
   function addSubmit(parent, value) {
     var button = document.createElement('button'); button.className = 'btn btn-primary focusable answer-submit';
@@ -175,6 +228,13 @@
       if (error) { state.busy = false; toast(error); return; }
       if (result.pending) { state.busy = false; pending(result.reviewId); return; }
       if (result.blocked) { state.busy = false; lock(result.blocked); return; }
+      // 家长刚删掉这道题时后端返回可恢复结果：重新取题，不要停在旧题上
+      if (result.recovered) {
+        hideFeedback(); state.draft = null;
+        if (result.quizEmpty) return quizEmpty(result.quizEmptyMessage);
+        state.busy = false; start(); return;
+      }
+      if (!result.correctIndices) { state.busy = false; hideFeedback(); start(); return; }
       state.learning = result.status; pill();
       all('#qOptions [data-opt]').forEach(function (el) {
         var i = +el.getAttribute('data-opt');
@@ -184,7 +244,7 @@
       state.feedback = result;
       showFeedback(result, item, written);
       var auto = +state.config.autoNextSeconds || 0;
-      if (auto > 0) nextTimer = window.setTimeout(proceed, auto * 1000);
+      if (auto > 0) nextTimer = window.setTimeout(proceed, Math.max(auto, result.status.feedbackSeconds || 0) * 1000 + 200);
     });
   }
   var PRAISE = ['太棒了！', '答对啦！', '完全正确！', '真厉害！', '好样的，继续保持！', '漂亮！你越来越熟练了'];
@@ -210,7 +270,9 @@
     $('fbAnswer').textContent = answer ? '正确答案：' + answer : '';
     $('fbTip').textContent = result.tip ? '解析：' + result.tip : '';
     var go = $('fbNext');
+    state.feedbackUntil = Date.now() + ((result.status && result.status.feedbackSeconds) || 0) * 1000;
     go.textContent = result.finished ? '查看结果' : '继续';
+    updateFeedbackClock();
     go.className = 'btn ' + (right ? 'btn-primary' : 'btn-danger') + ' focusable';
     if (window.SOTV_MATH) { window.SOTV_MATH($('fbAnswer')); window.SOTV_MATH($('fbTip')); }
     // 选项已经作答，焦点只留在“继续”上
@@ -219,8 +281,25 @@
     if (!isTv()) go.focus();
   }
   function hideFeedback() { $('qFeedback').className = 'feedback'; state.feedback = null; }
+  function updateFeedbackClock() {
+    if (!state.feedback) return;
+    var seconds = Math.max(0, Math.ceil(((state.feedbackUntil || 0) - Date.now()) / 1000)), go = $('fbNext');
+    go.disabled = seconds > 0;
+    go.textContent = seconds > 0 ? '查看解析 · ' + seconds + ' 秒' : state.feedback.finished ? '查看结果' : '继续';
+  }
+  window.setInterval(updateFeedbackClock, 500);
   function proceed() {
     var result = state.feedback;
+    if (!result || state.continuing || (state.feedbackUntil || 0) > Date.now()) return;
+    state.continuing = true;
+    request('/api/quiz/continue', {}, function (error, response) {
+      state.continuing = false;
+      if (error) { toast(error); return; }
+      result.status = response.status; state.learning = response.status;
+      proceedReady(result);
+    });
+  }
+  function proceedReady(result) {
     if (!result) return;
     window.clearTimeout(nextTimer);
     hideFeedback();
@@ -230,14 +309,16 @@
       state.round = null;
       if (result.passed) {
         if (result.status.reason) { lock(result.status.reason); toast('奖励已保存，达到可用时段后使用'); return; }
+        var reward = Math.round((result.rewardMinutes || 0) * 10) / 10;
         show('lock'); $('lockTitle').textContent = '任务完成'; icon($('lockIcon'), 'check');
-        $('lockDesc').textContent = '已解锁 ' + Math.round(result.rewardMinutes * 10) / 10 + ' 分钟'; $('lockNote').textContent = '';
+        $('lockDesc').textContent = reward > 0 ? '已解锁 ' + reward + ' 分钟' : '今天的时间额度已经领满，先使用已有的时间吧'; $('lockNote').textContent = '';
         $('lockActions').innerHTML = '<button class="btn btn-primary focusable" data-action="resume">开始使用</button>';
         focusDefault();
         // 解锁后回到解题前正在看的应用，不要跳回桌面（#68 / #74）
         window.setTimeout(function () { if (state.screen === 'lock') nativeCall('resumePrevious'); }, 2500);
       } else { toast('本组未通过，再试一组'); start(); }
-    } else { state.round = result.next; renderQuestion(); }
+    } else if (result.next) { state.round = result.next; renderQuestion(); }
+    else quizEmpty(result.quizEmptyMessage);
   }
   function reviewed(result) {
     state.awaiting = false; state.reviewed = true; state.review = result;
@@ -260,6 +341,12 @@
   function lock(reason) {
     state.lockReason = reason;
     show('lock'); state.round = null;
+    if (reason === 'feedback') { start(); return; }
+    if (reason === 'rest') {
+      icon($('lockIcon'), 'clock'); $('lockTitle').textContent = '休息一下';
+      $('lockDesc').textContent = '还需休息 ' + Math.ceil((state.learning.restSeconds || 0) / 60) + ' 分钟';
+      $('lockNote').textContent = '休息结束后继续原有学习计划，余额和每日额度不会重置'; $('lockActions').innerHTML = ''; focusDefault(); return;
+    }
     if (reason === 'settings') {
       icon($('lockIcon'), 'hourglass');
       $('lockTitle').textContent = '管控期间暂不能打开系统设置';
@@ -374,13 +461,17 @@
         else start();
       });
     }
-    if (action === 'voice' || action === 'handwrite') nativeCall('answerInput', [action === 'voice']);
+    if (action === 'voice') nativeCall('answerVoice', [state.draft ? state.draft.text : '', state.round ? state.round.question.q : '', state.round ? state.round.question.language || 'zh-CN' : 'zh-CN']);
+    if (action === 'handwrite') nativeCall('answerInput', [false]);
+    if (action === 'choose-level') start(el.getAttribute('data-level'));
     if (action === 'type-answer' && !state.busy) nativeCall('answerText', [state.draft ? state.draft.text : '', state.round ? state.round.question.q : '']);
     if (action === 'update-go') { var u = window.currentUpdate; if (u) nativeCall('installUpdate', [u.url, u.latest, u.notes || '']); }
     if (action === 'update-close') { $('updateTip').className = 'update-tip'; try { if (window.currentUpdate) window.localStorage.setItem('sotv_update_dismissed', window.currentUpdate.latest); } catch (e) {} if (el.classList.contains('focused')) focusDefault(); }
     if (action === 'permissions' || action === 'password') nativeCall(action === 'permissions' ? 'openPermissions' : 'changePassword');
     if (action === 'clear-drawing') { state.draft.drawing = ''; renderQuestion(); }
-    if (action === 'read-aloud') { try { nativeCall('readAloud', [state.round ? state.round.question.q : '']); } catch(e) {} }
+    if (action === 'watch-lesson') nativeCall('watchLesson');
+    if (action === 'play-audio' && state.round) nativeCall('playAudio', [state.round.question.audio || '']);
+    if (action === 'read-aloud') nativeCall('readInLanguage', [state.round ? state.round.question.q : '', state.round ? state.round.question.language || 'zh-CN' : 'zh-CN']);
     if (action === 'retry') start();
     if (action === 'skip-review') { request('/api/quiz/skip', {}, function (error, result) { if (error) { toast(error); return; } state.awaiting = false; state.reviewed = false; state.busy = false; start(); }); }
     if (action === 'return-learning') nativeCall('backToQuiz');
@@ -439,9 +530,13 @@
     window.setInterval(function () {
       $('clock').textContent = new Date().toTimeString().slice(0, 5);
       if ((state.busy && !state.feedback) || state.screen === 'pair') return;
-      var version = state.config.version, wasFree = !!state.learning.free;
+      var version = state.config.version, quizGeneration = state.learning.quizGeneration || 0, wasFree = !!state.learning.free;
       loadState(function (error) {
         if (error) return;
+        if (quizGeneration !== (state.learning.quizGeneration || 0)) {
+          window.clearTimeout(nextTimer); state.busy = false; state.awaiting = false; state.reviewed = false;
+          state.round = null; hideFeedback(); start(); return;
+        }
         if (state.settingsGate) {
           if (!state.learning.free && state.config.blockSettingsDuringControl !== false) return;
           state.settingsGate = false; start(); return;
@@ -456,6 +551,8 @@
           window.clearTimeout(nextTimer); state.busy = false; state.awaiting = false; state.reviewed = false;
           hideFeedback(); start(); return;
         }
+        if (state.feedback) { state.feedbackUntil = Date.now() + (state.learning.feedbackSeconds || 0) * 1000; updateFeedbackClock(); }
+        if (state.screen === 'lock' && state.learning.reason === 'rest') { lock('rest'); return; }
         if (state.reviewed || state.feedback) return;
         if (state.awaiting) { if (!state.learning.awaitingReview) start(); return; }
         if (state.screen === 'lock' && (state.lockReason !== state.learning.reason || state.wasFree !== !!state.learning.free)) {
@@ -463,7 +560,7 @@
           if (!state.learning.reason) start(); else lock(state.learning.reason);
           return;
         }
-        if (state.screen === 'quiz' && state.learning.reason && ['quota','rounds','schedule'].indexOf(state.learning.reason) >= 0 && state.config.playMode !== 'practice') lock(state.learning.reason);
+        if (state.screen === 'quiz' && state.learning.reason && ['quota','rounds','schedule','rest','feedback'].indexOf(state.learning.reason) >= 0 && state.config.playMode !== 'practice') lock(state.learning.reason);
         else if (version !== state.config.version && state.screen === 'quiz') start();
       });
     }, 2000);
