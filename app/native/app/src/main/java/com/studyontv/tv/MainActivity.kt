@@ -28,7 +28,7 @@ open class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (DeviceBridge.isTv(this)) requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         val reason = intent.getStringExtra("reason")
-        page = if (this is GateActivity && reason != null && reason != "timeup") "lock?reason=$reason" else "quiz"
+        page = if (this is GateActivity && reason != null && reason !in listOf("timeup", "feedback")) "lock?reason=$reason" else "quiz"
         createWeb()
         GateService.start(this)
     }
@@ -84,10 +84,11 @@ open class MainActivity : Activity() {
     override fun onStop() {
         super.onStop()
         MediaPause.release(this)
+        SpeechReader.stop()
         // 正在等原生输入页（填空题）回传答案时不能销毁 WebView：
-        // TvTextInputActivity 会把结果写回当前 WebView，destroy() 后 JS 上下文消失，
-        // AnswerInput 的重投全部落在死实例上，表现为「点确定回到题目还是空的」（#64 / #84）。
-        val awaitingInput = AnswerInput.active
+        // TvTextInputActivity / InputSupport 会把结果写回当前 WebView，destroy() 后 JS 上下文消失，
+        // 重投全部落在死实例上，表现为「点确定回到题目还是空的」（#64 / #77 / #80 / #84）。
+        val awaitingInput = InputSupport.active || AnswerInput.active
         if (DeviceBridge.isTv(this) && ::web.isInitialized && !webReleased && !awaitingInput) {
             (web.parent as? android.view.ViewGroup)?.removeView(web)
             web.destroy()
@@ -99,7 +100,7 @@ open class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         val reason = intent?.getStringExtra("reason")
-        page = if (this is GateActivity && reason != null && reason != "timeup") "lock?reason=$reason" else "quiz"
+        page = if (this is GateActivity && reason != null && reason !in listOf("timeup", "feedback")) "lock?reason=$reason" else "quiz"
         if (::web.isInitialized && !webReleased) {
             web.loadUrl(Prefs.localBase(this) + "#/$page")
             web.evaluateJavascript("window.SOTV_RESUME&&SOTV_RESUME()", null)

@@ -17,6 +17,10 @@ object AnswerInput {
     var active = false
         private set
 
+    fun language(): String = try {
+        JSONObject(DeviceRuntime.store.get("active_round", "{}")).optJSONObject("question")?.optString("language", "zh-CN") ?: "zh-CN"
+    } catch (_: Exception) { "zh-CN" }
+
     /** 打开一个原生输入页（手机：手写 / 语音；电视：遥控器 + 系统输入法），结果经 SOTV_INPUT 回传给网页 */
     fun open(context: Context, web: WebView, screen: Class<out Activity>, extras: Intent.() -> Unit = {}) {
         if (active) return

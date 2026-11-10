@@ -132,28 +132,34 @@ open class DeviceBridge(protected val activity: Activity, private val connection
         }
     }
 
-    private var tts: TextToSpeech? = null
+    @JavascriptInterface
+    fun readAloud(text: String) = SpeechReader.read(activity, text, "zh-CN", ::speechNotice)
 
     @JavascriptInterface
-    fun readAloud(text: String) {
-        if (text.isBlank()) return
-        activity.runOnUiThread {
-            if (tts == null) {
-                tts = TextToSpeech(activity) { status ->
-                    if (status == TextToSpeech.SUCCESS) {
-                        tts?.language = Locale.CHINESE
-                        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sotv_read")
-                    }
-                }
-            } else {
-                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sotv_read")
-            }
-        }
+    fun readInLanguage(text: String, language: String) = SpeechReader.read(activity, text, language, ::speechNotice)
+
+    @JavascriptInterface
+    fun stopReading() = SpeechReader.stop()
+
+    @JavascriptInterface
+    fun playAudio(url: String) = SpeechReader.playAudio(activity, url, ::speechNotice)
+
+    /** 最近一次朗读 / 音频播放的结果；失败时 reason/message/degraded 有值（#87 不再静默） */
+    @JavascriptInterface
+    fun speechStatus(): String = SpeechReader.status().toString()
+
+    /** 失败信息推给网页：页面里装了 window.SOTV_SPEECH_NOTICE 就能显示提示（与 SOTV_INPUT/SOTV_UPDATE 同一约定） */
+    private fun speechNotice(payload: JSONObject) {
+        val view = web ?: return
+        view.post { try { view.evaluateJavascript("window.SOTV_SPEECH_NOTICE&&SOTV_SPEECH_NOTICE($payload)", null) } catch (_: Throwable) { } }
     }
 
     @JavascriptInterface
-    fun stopReading() {
-        tts?.stop()
+    fun watchLesson() { activity.runOnUiThread { VideoLessons.open(activity) } }
+
+    @JavascriptInterface
+    fun answerVoice(draft: String, prompt: String, language: String) {
+        activity.runOnUiThread { web?.let { InputSupport.openVoice(activity, it, draft, prompt, SpeechReader.recognitionLanguage(language)) } }
     }
 
     companion object {
