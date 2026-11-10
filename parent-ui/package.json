@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node prepare-assets.mjs && tsc --noEmit && vite build",
     "dev": "vite --host 127.0.0.1",
-    "test": "node --experimental-strip-types src/schema.test.ts && node --experimental-strip-types src/keepalive.test.ts"
+    "test": "node --experimental-strip-types src/schema.test.ts && node --experimental-strip-types src/document-import.test.ts && node --experimental-strip-types src/keepalive.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "3.10.0",
@@ -19,12 +19,16 @@
     "@radix-ui/react-slot": "1.2.3",
     "@radix-ui/react-switch": "1.2.6",
     "@radix-ui/react-tabs": "1.1.13",
+    "@radix-ui/react-toolbar": "^1.2.1",
     "@radix-ui/react-tooltip": "1.2.8",
-    "@tabler/core": "^1.7.3",
     "@tanstack/react-query": "5.83.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "cn": "^0.5.2",
     "lucide-react": "0.468.0",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^4.10.38",
+    "radix-ui": "^1.8.1",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "react-hook-form": "7.62.0",

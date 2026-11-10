@@ -9,7 +9,8 @@ import android.view.KeyEvent
 /** Pause cooperative players first; keep a reversible music-stream mute for players that ignore pause. */
 object MediaPause {
     private val listener = AudioManager.OnAudioFocusChangeListener { }
-    private val owners = mutableSetOf<Context>()
+    // 主线程之外（无障碍服务、家长面板）也可能 release，用线程安全的集合避免持有者被漏掉/重复添加。
+    private val owners = java.util.concurrent.CopyOnWriteArraySet<Context>()
     private var holding = false
     private var muted = false
     private var attempts = 0
@@ -17,6 +18,15 @@ object MediaPause {
     private var originalVolume = 0
     private var originalMuted = false
     val active: Boolean get() = owners.isNotEmpty()
+    /** 静音持有者数量；诊断用（>1 时说明有多个 Context 各自持有） */
+    val ownerCount: Int get() = owners.size
+    /** 音乐流是否已经被我们静音（enforce 落库后的状态） */
+    val levelMuted: Boolean get() = muted
+    /** 最近一次开始静音的时间（elapsedRealtime），用于诊断「静音了多久」 */
+    @Volatile var lastPauseAt: Long = 0L
+        private set
+    @Volatile var lastReleaseAt: Long = 0L
+        private set
 
     private fun audio(context: Context) = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     private fun prefs(context: Context) = context.getSharedPreferences("sotv", Context.MODE_PRIVATE)
@@ -45,8 +55,9 @@ object MediaPause {
             originalMuted = if (Build.VERSION.SDK_INT >= 23) audio.isStreamMute(AudioManager.STREAM_MUSIC) else originalVolume == 0
             attempts = 0
             lastKey = SystemClock.elapsedRealtime()
+            lastPauseAt = lastKey
             owners.add(context)
-            Diag.info("Audio", "pause start volume=$originalVolume muted=$originalMuted api=${Build.VERSION.SDK_INT} music=${audio.isMusicActive}")
+            Diag.info("Audio", "pause start volume=$originalVolume muted=$originalMuted api=${Build.VERSION.SDK_INT} music=${audio.isMusicActive} owners=${owners.size}")
             if (audio.isMusicActive) { sendPause(audio); attempts = 1 }
             holding = audio.requestAudioFocus(listener, AudioManager.STREAM_MUSIC,
                 AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
@@ -121,6 +132,7 @@ object MediaPause {
     fun release(context: Context) {
         val removed = owners.remove(context)
         if (active) return
+        lastReleaseAt = SystemClock.elapsedRealtime()
         if (removed) Diag.info("Audio", "release owner, active=false muted=$muted")
         if (restore(context)) muted = false
         try { if (holding) audio(context)?.abandonAudioFocus(listener) }

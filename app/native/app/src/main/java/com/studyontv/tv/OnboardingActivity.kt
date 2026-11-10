@@ -207,6 +207,9 @@ class OnboardingActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        // 从系统设置回来必须重新探测悬浮窗：长虹等机型 Settings.canDrawOverlays 永远返回 false，
+        // 只有真实 addView 探针能确认，否则家长授权完回到这里仍看到「未开启」（issue #92）。
+        OverlayAccess.invalidate()
         handler.removeCallbacks(refreshStatus)
         handler.post(refreshStatus)
     }
