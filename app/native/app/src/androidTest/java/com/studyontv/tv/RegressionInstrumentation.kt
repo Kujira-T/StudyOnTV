@@ -34,6 +34,10 @@ class RegressionInstrumentation : Instrumentation() {
             check(engine.status().getLong("freeQuotaSeconds") == 60L)
             engine.saveConfig(JSONObject().put("dailyFreeMinutes", 0))
             check(engine.status().getLong("freeQuotaSeconds") == 0L)
+            // 调到 0 再调回来，不能把已经用掉的 1 分钟重新发一遍
+            engine.saveConfig(JSONObject().put("dailyFreeMinutes", 15))
+            check(engine.status().getLong("freeQuotaSeconds") == 840L) { "从 0 调回 15 不能补发已用的 1 分钟" }
+            engine.saveConfig(JSONObject().put("dailyFreeMinutes", 0))
             try {
                 engine.saveConfig(JSONObject().put("dailyFreeMinutes", 121))
                 error("超范围的免费时长不应保存")

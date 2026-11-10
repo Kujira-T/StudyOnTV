@@ -148,20 +148,35 @@ class LearningEngine(private val store: LocalStore) {
             // 每天重置时，把"默认免费时长"存入 free_quota_ms（和答题奖励分开记）
             val freeMin = store.config().optLong("dailyFreeMinutes", 0L)
             put("free_quota_ms", freeMin * 60000L)
+            put("free_used_ms", 0)
+        } else if (store.get("free_used_ms").isEmpty()) {
+            // 旧版本升级：没有 free_used_ms，用当天已用时长估算已消耗的免费额度。
+            // 免费额度总是先于奖励余额扣除，所以这个估算不会把奖励时间算成免费时间。
+            val daily = store.config().optLong("dailyFreeMinutes", 0L) * 60000L
+            put("free_used_ms", min(number("used_ms"), daily).coerceAtLeast(0))
         }
     }
 
-    /** 修改每日免费额度时只补扣差额，已经消耗的额度不重新发放（#83）。 */
+    /**
+     * 修改每日免费额度时只补扣差额，已经消耗的额度不重新发放（#83）。
+     *
+     * 只加差额会在「调到 0 再调回来」时把已经用掉的时长重新发一遍；这里再用
+     * 「新上限 - 今天已用的免费时长」封顶，同时保留家长手动收走的那部分。
+     */
     @Synchronized
     fun saveConfig(input: JSONObject): JSONObject {
         day()
-        val previous = store.config().optLong("dailyFreeMinutes") * 60000L
+        val previousDaily = store.config().optLong("dailyFreeMinutes") * 60000L
+        val previousFree = number("free_quota_ms")
+        val usedFree = number("free_used_ms")
         val db = store.writableDatabase
         db.beginTransaction()
         try {
             val config = store.saveConfig(input)
-            val delta = config.optLong("dailyFreeMinutes") * 60000L - previous
-            put("free_quota_ms", (number("free_quota_ms") + delta).coerceAtLeast(0))
+            val daily = config.optLong("dailyFreeMinutes") * 60000L
+            val granted = (previousFree + (daily - previousDaily)).coerceAtLeast(0)
+            val cap = (daily - usedFree).coerceAtLeast(0)
+            put("free_quota_ms", min(granted, cap))
             db.setTransactionSuccessful()
             return config
         } finally { db.endTransaction() }
@@ -353,6 +368,7 @@ class LearningEngine(private val store: LocalStore) {
             val freeConsumed = min(milliseconds.coerceIn(0, 5000), min(freeQuotaNow, available))
             if (freeConsumed > 0) {
                 put(freeKey, freeQuotaNow - freeConsumed)
+                if (freeKey == "free_quota_ms") put("free_used_ms", number("free_used_ms") + freeConsumed)
                 time.consumed(config, freeConsumed)
                 put("used_ms", number("used_ms") + freeConsumed)
                 pendingUsageMs += freeConsumed
