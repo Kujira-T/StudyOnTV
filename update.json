@@ -1,21 +1,21 @@
 {
-  "version": "0.3.24",
-  "versionCode": 29,
+  "version": "0.3.25",
+  "versionCode": 30,
   "force": false,
-  "notes": "· 新增可选的通知监听复活：被系统强停后自动拉回管控服务，不读取通知内容\n· #108 倒计时角标不再每秒闪烁\n· #109 每日免费时长保存后立即生效",
-  "publishedAt": "2026-11-10T11:28:38.601Z",
+  "notes": "· #122 海信 VIDAA 悬浮窗被视频画面盖住：新增「强制使用全屏学习页」开关，探针权限 + 正在播放视频时自动改走全屏学习页\n· AI 连接超时放宽到 20 秒，区分「连不上地址」和「模型太慢」，报错带主机名",
+  "publishedAt": "2026-11-10T14:26:18.941Z",
   "assets": {
     "tv": {
-      "name": "StudyOnTV-Android-TV-v0.3.24.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.24/StudyOnTV-Android-TV-v0.3.24.apk",
-      "sha256": "1d0e7c6bf8e0dcb0c6b5ba47cfda00b08efa1a60da47050c4545b01613f173fc",
-      "size": 3372128
+      "name": "StudyOnTV-Android-TV-v0.3.25.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.25/StudyOnTV-Android-TV-v0.3.25.apk",
+      "sha256": "3f9fc578e1e709abb0a4fc6e53f095a955341e5c6e47e7ec738882bc8f6a8c1e",
+      "size": 3373013
     },
     "mobile": {
-      "name": "StudyOnTV-Mobile-v0.3.24.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.24/StudyOnTV-Mobile-v0.3.24.apk",
-      "sha256": "2529babc40d84f69713b315cb8e00d3c7855c8d3db71c7a2ca67ffca360911b7",
-      "size": 3374189
+      "name": "StudyOnTV-Mobile-v0.3.25.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.25/StudyOnTV-Mobile-v0.3.25.apk",
+      "sha256": "277a5292cb3fe9e9d3dd4295147c04c30db8169d4ad131059f9b2233f73dca6f",
+      "size": 3375008
     }
   }
 }
