@@ -5,7 +5,7 @@
 | Android 5.0+ 电视、手机、平板 | 完整题库、学习规则、本地服务及权限条件下的整机管控 | TV、mobile Debug 编译通过；Android TV 模拟器回归通过，厂商固件需真机复测。 |
 | MAXHUB Android 大屏 | 使用现有 Android 包；带遥控器用 TV 包，触屏用 mobile 包 | 需确认 Android 版本、允许安装 APK，安装方法与普通 Android 相同；没有 MAXHUB 实机验证。 |
 | MAXHUB Windows / OPS 电脑 | 浏览器练习页 | Windows 不能直接安装 Android APK；不提供 Windows 整机管控。 |
-| Android 4.0–4.4（API 14–20） | 独立 `legacy` 离线练习 APK | 支持本地题库、单选/多选/判断/填空、年级、练习记录；没有现代版整机管控、后台服务及家长局域网 API。编译通过，尚无 Android 4 实机或模拟器验证。 |
+| Android 4.0–4.4（API 14–20） | 独立 `legacy` APK：离线练习 + 整机管控 PoC（前台服务、悬浮拦截、每日上限、开机自启） | 支持本地题库、单选/多选/判断/填空、年级、练习记录。整机管控已在 Android 4.4.2（API 19）模拟器端到端验证；Android 4.0–4.3 仅编译验证；5.0+ 前台识别退化。详见 [legacy-control.md](legacy-control.md)。 |
 | iPad / iPhone Safari | 浏览器本地练习页；家长管理页可管理 Android 设备 | 不能限制其他 iOS 应用。没有声称实现 iOS Screen Time / Family Controls 原生管控。 |
 
 ## MAXHUB
@@ -27,6 +27,8 @@ gradle -p app/native :legacy:assembleDebug
 产物：`app/native/legacy/build/outputs/apk/debug/legacy-debug.apk`。
 
 练习资源内置在 APK，安装后可离线打开。旧 WebView 的文件选择兼容性不同，可直接粘贴题库 JSON。历史记录与题库由当前 WebView 的本地存储保存，请导出备份。该包是旧系统可安装的学习版本，不是把现代版 minSdk 降低后宣称其全部管控能力都可用。
+
+该包还包含一个整机管控 PoC：前台服务 + 悬浮拦截层 + 每日用量上限 + 开机自启。Android 4.4.2（API 19）模拟器已完成端到端验证；Android 4.0–4.3 仅编译验证；5.0+ 因 `getRunningTasks` 退化，只能按本应用可见性粗略计时；6.0+ 悬浮窗需要用户手动授权。它不能阻止卸载或强行停止，也不是设备管理员/kiosk 方案。架构、能力边界、测试步骤与已知限制见 [legacy-control.md](legacy-control.md)。
 
 ## iPad 与浏览器练习
 

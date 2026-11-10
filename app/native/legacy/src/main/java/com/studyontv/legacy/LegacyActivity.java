@@ -4,12 +4,13 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-/** Android 4.0+ 的离线练习壳；不包含整机管控、后台保活或家长局域网服务。 */
+/** Android 4.0+ 的离线练习页 + 整机管控 PoC 入口。 */
 public class LegacyActivity extends Activity {
     private WebView web;
     private ValueCallback<Uri> upload;
@@ -37,6 +38,25 @@ public class LegacyActivity extends Activity {
         });
         setContentView(web);
         web.loadUrl("file:///android_asset/practice.html");
+        LegacyServiceStarter.start(this);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        LegacyApp.enter();
+    }
+
+    @Override protected void onPause() {
+        LegacyApp.leave();
+        super.onPause();
+    }
+
+    @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+            startActivity(new Intent(this, LegacySettingsActivity.class));
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
