@@ -329,6 +329,9 @@ class GateService : Service() {
             if (MediaPause.active && !InputSupport.active) {
                 if (muteBackedByVisibleGate()) MediaPause.enforce(this@GateService)
                 else releaseMuteWithoutGate("media")
+            } else if (!MediaPause.active) {
+                // 上次恢复因权限 / 前台限制没生效时保留记录，这里每秒重试一次。
+                MediaPause.recover(this@GateService)
             }
             handler.postDelayed(this, 1000)
         }

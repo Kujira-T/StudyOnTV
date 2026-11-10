@@ -39,7 +39,10 @@ class EducationalVideoActivity : Activity() {
         status = TvUi.text(this, "加载公益视频…", 20f)
         root.addView(status)
         video = VideoView(this).apply {
-            setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
+            // 公益视频是普通媒体内容，用 USAGE_MEDIA 才能走电视的主音频输出；
+            // 部分 Amlogic 盒子（如天猫魔盒）没有独立的无障碍音频路由，用
+            // USAGE_ASSISTANCE_ACCESSIBILITY 会表现为完全无声（issue #116）。
+            setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
             setMediaController(MediaController(this@EducationalVideoActivity))
             setOnPreparedListener { if (resumed) start() }
             setOnCompletionListener { if (resumed && !complete.isEnabled) start() }

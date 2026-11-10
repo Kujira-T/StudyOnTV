@@ -17,6 +17,11 @@ object MediaPause {
     private var lastKey = 0L
     private var originalVolume = 0
     private var originalMuted = false
+    private var lastRestoreWarnAt = 0L
+    // 只有读到的媒体流「有音量且未静音」时才允许改全局静音。
+    // HDMI 固定音量 / 部分 Amlogic 盒子会读到 volume=0（甚至 isStreamMute=true）但实际有声音，
+    // 在这种设备上 mute 可能把整机声音锁死，解锁后也不再恢复（issue #116 天猫魔盒 M16S）。
+    private var canMute = false
     val active: Boolean get() = owners.isNotEmpty()
     /** 静音持有者数量；诊断用（>1 时说明有多个 Context 各自持有） */
     val ownerCount: Int get() = owners.size
@@ -53,11 +58,12 @@ object MediaPause {
         try {
             originalVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
             originalMuted = if (Build.VERSION.SDK_INT >= 23) audio.isStreamMute(AudioManager.STREAM_MUSIC) else originalVolume == 0
+            canMute = originalVolume > 0 && !originalMuted
             attempts = 0
             lastKey = SystemClock.elapsedRealtime()
             lastPauseAt = lastKey
             owners.add(context)
-            Diag.info("Audio", "pause start volume=$originalVolume muted=$originalMuted api=${Build.VERSION.SDK_INT} music=${audio.isMusicActive} owners=${owners.size}")
+            Diag.info("Audio", "pause start volume=$originalVolume muted=$originalMuted canMute=$canMute api=${Build.VERSION.SDK_INT} music=${audio.isMusicActive} owners=${owners.size}")
             if (audio.isMusicActive) { sendPause(audio); attempts = 1 }
             holding = audio.requestAudioFocus(listener, AudioManager.STREAM_MUSIC,
                 AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
@@ -77,6 +83,12 @@ object MediaPause {
                 return
             }
             if (SystemClock.elapsedRealtime() - lastKey < 3000) return
+            if (!canMute) {
+                // 音量读数为 0：可能本来就没声音，也可能是固定音量设备。继续尝试暂停，
+                // 但绝不写全局静音，避免把整机音频锁死。
+                if (attempts < 2) { sendPause(audio); attempts++ }
+                return
+            }
             if (attempts < 2) { sendPause(audio); attempts++; return }
             // Commit the recovery record before changing global audio state.
             if (!prefs(context).edit().putBoolean("media_muted", true)
@@ -98,20 +110,33 @@ object MediaPause {
             // 电视 / HDMI 设备可能使用固定音量，系统读到的媒体音量是 0 但实际有声音。
             // 这种情况下不要把音量写回 0，只解除我们自己的静音即可，否则解锁后会一直无声。
             val savedVolume = state.getInt("media_original_volume", 0)
-            if ((!wasMuted || Build.VERSION.SDK_INT < 23) && state.contains("media_original_volume") && savedVolume > 0) {
+            // 原始音量为 0 + 原始状态静音，才视为「用户本来就静音」；读到正音量却标记静音
+            // 通常是设备误报，必须恢复，否则一次弹题后整机再无声音。
+            val originallyMuted = wasMuted && savedVolume <= 0
+            if (!originallyMuted && state.contains("media_original_volume") && savedVolume > 0) {
                 audio.setStreamVolume(AudioManager.STREAM_MUSIC,
                     savedVolume.coerceIn(0, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0)
             }
-            // Before API 23 mute calls are counted per client: release our request once.
-            // A previously quiet stream was read as volume zero, which remains quiet after release.
-            if (Build.VERSION.SDK_INT < 23) setMuted(audio, false)
-            else {
-                setMuted(audio, wasMuted)
-                // 部分电视（小米等）对 ADJUST_UNMUTE 的响应不稳定，额外调用一次 setStreamMute(false) 兜底。
-                if (!wasMuted) try { audio.setStreamMute(AudioManager.STREAM_MUSIC, false) } catch (_: Exception) { }
+            if (!originallyMuted) {
+                // 只解除我们自己的静音；本来静音的流不动，避免覆盖用户设置。
+                setMuted(audio, false)
+                // 部分电视（小米 / Amlogic 等）对 ADJUST_UNMUTE 的响应不稳定，
+                // 额外调用一次 setStreamMute(false) 兜底。
+                if (Build.VERSION.SDK_INT >= 23) try { audio.setStreamMute(AudioManager.STREAM_MUSIC, false) } catch (_: Exception) { }
+                // 新版 Android 会限制非前台应用改音量；如果这次没生效，保留记录，
+                // 等 Activity 回到前台或下一次 tick 再试，不能把恢复机会一起清掉。
+                val restoredVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+                if (savedVolume > 0 && restoredVolume <= 0) {
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastRestoreWarnAt > 30000) {
+                        lastRestoreWarnAt = now
+                        Diag.warn("Audio", "restore deferred: volume still 0 (saved=$savedVolume)")
+                    }
+                    return false
+                }
             }
             state.edit().remove("media_muted").remove("media_original_volume").remove("media_original_muted").commit()
-            Diag.info("Audio", "restored volume=$savedVolume wasMuted=$wasMuted holding=$holding")
+            Diag.info("Audio", "restored volume=$savedVolume wasMuted=$wasMuted originallyMuted=$originallyMuted holding=$holding")
             true
         } catch (e: Exception) {
             android.util.Log.w("StudyOnTV", "Restore media volume failed", e)

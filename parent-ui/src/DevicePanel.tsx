@@ -131,7 +131,7 @@ function SettingItem({
         )}
       </ItemContent>
       <ItemActions
-        className={`shrink-0 flex-wrap justify-end ${wideControl ? 'ms-0 w-full sm:ms-auto sm:w-auto' : 'ms-auto'}`}
+        className={`min-w-0 flex-wrap justify-end ${wideControl ? 'ms-0 w-full sm:ms-auto sm:w-auto' : 'ms-auto'}`}
       >
         {children}
       </ItemActions>

@@ -17,6 +17,9 @@ open class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 进程被杀 / 升级后先恢复上次遗留的媒体流静音，避免电视一直无声（issue #116）。
+        // 放在配置检查之前：即使还没完成设置，也不该让整机保持静音。
+        MediaPause.recover(this)
         if (!AdminAuth.configured(this)) {
             startActivity(Intent(this, ParentActivity::class.java)); finish(); return
         }
@@ -109,6 +112,8 @@ open class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        // 前台重试一次遗留静音恢复（非前台时系统可能拦截音量写入）。
+        MediaPause.recover(this)
         if (Prefs.onboarded(this)) GateService.ensureRunning(this, "app")
         if (this is GateActivity && !DeviceRuntime.learning.status().optBoolean("free")) MediaPause.pause(this)
         if (webReleased) createWeb()

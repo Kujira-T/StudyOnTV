@@ -92,7 +92,7 @@ export function Choice({value,onChange,options,label}:{value:string,onChange:(va
 export function Row({title,note,children}:{title:string,note?:string;children?:ReactNode}){
  return <div className="flex items-start justify-between gap-4 border-b border-border/60 py-3 last:border-0">
   <div className="min-w-0"><div className="text-sm font-medium">{title}</div>{note&&<div className="mt-0.5 text-xs leading-5 text-muted-foreground">{note}</div>}</div>
-  {children!=null&&<div className="shrink-0">{children}</div>}
+  {children!=null&&<div className="min-w-0">{children}</div>}
  </div>;
 }
 
@@ -221,19 +221,19 @@ export default function RulesPage({state,sessionId}:{state:any,sessionId:number}
       </Field>
       <Field orientation="responsive" className="py-4">
        <FieldContent><FieldTitle>题库</FieldTitle><FieldDescription className="text-xs leading-5">可多选；只从选定题库抽题</FieldDescription></FieldContent>
-       <div className="flex flex-wrap gap-2">
+       <div className="flex min-w-0 flex-wrap gap-2">
         {scopeBanks.map(v=><FieldLabel key={v} className="cursor-pointer rounded-lg border border-border/70 px-3 py-2 font-normal transition-colors hover:bg-muted/40 has-data-[state=checked]:border-primary/40 has-data-[state=checked]:bg-primary/5"><Checkbox checked={inScope('quizBanks',v)} onCheckedChange={()=>toggleScope('quizBanks',v)}/><span>{v}</span></FieldLabel>)}
        </div>
       </Field>
       <Field orientation="responsive" className="py-4">
        <FieldContent><FieldTitle>科目</FieldTitle><FieldDescription className="text-xs leading-5">可多选；只从选中的科目抽题</FieldDescription></FieldContent>
-       <div className="flex flex-wrap gap-2">
+       <div className="flex min-w-0 flex-wrap gap-2">
         {scopeSubjects.length?scopeSubjects.map(v=><FieldLabel key={v} className="cursor-pointer rounded-lg border border-border/70 px-3 py-2 font-normal transition-colors hover:bg-muted/40 has-data-[state=checked]:border-primary/40 has-data-[state=checked]:bg-primary/5"><Checkbox checked={inScope('quizSubjects',v)} onCheckedChange={()=>toggleScope('quizSubjects',v)}/><span>{v}</span></FieldLabel>):<FieldDescription className="text-xs">题库里还没有科目</FieldDescription>}
        </div>
       </Field>
       <Field orientation="responsive" className="py-4">
        <FieldContent><FieldTitle>年级</FieldTitle><FieldDescription className="text-xs leading-5">可多选；适合不同年级的题目分开管理</FieldDescription></FieldContent>
-       <div className="flex flex-wrap gap-2">
+       <div className="flex min-w-0 flex-wrap gap-2">
         {scopeLevels.length?scopeLevels.map(v=><FieldLabel key={v} className="cursor-pointer rounded-lg border border-border/70 px-3 py-2 font-normal transition-colors hover:bg-muted/40 has-data-[state=checked]:border-primary/40 has-data-[state=checked]:bg-primary/5"><Checkbox checked={inScope('quizLevels',v)} onCheckedChange={()=>toggleScope('quizLevels',v)}/><span>{v}</span></FieldLabel>):<FieldDescription className="text-xs">题库里还没有年级</FieldDescription>}
        </div>
       </Field>
