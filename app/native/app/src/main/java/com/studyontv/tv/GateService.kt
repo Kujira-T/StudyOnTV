@@ -436,7 +436,10 @@ class GateService : Service() {
                 .setContentText("孩子可能已绕过时间限制，请点此重新开启无障碍服务")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentIntent(pi).setAutoCancel(true).setOnlyAlertOnce(false).build())
-            Diag.warn("Gate", "accessibility permission lost, notified parent")
+            val lostCount = Prefs.accessibilityLostCount(this) + 1
+            Prefs.setAccessibilityLostCount(this, lostCount)
+            Prefs.setAccessibilityLostAt(this, System.currentTimeMillis())
+            Diag.warn("Gate", "accessibility permission lost, notified parent count=$lostCount")
             BuglyInit.reportPermissionLost("ACCESSIBILITY_SERVICE", "permission removed during monitoring or restart")
         } catch (e: Exception) { Diag.error("Gate", "cannot notify accessibility lost", e) }
     }
@@ -620,6 +623,9 @@ class GateService : Service() {
                 .put("accessibilityLost", !WatchAccessibilityService.enabled(context) && context.getSharedPreferences("sotv", Context.MODE_PRIVATE).getBoolean("accessibility_lost", false))
                 .put("notificationListener", RevivalListener.enabled(context))
                 .put("notificationListenerConnected", RevivalListener.connected)
+                // === #120 红米电视：无障碍被系统清理连带关掉、进程被反复杀，给出可数的证据 ===
+                .put("accessibilityLostCount", Prefs.accessibilityLostCount(context))
+                .put("uncleanRestarts", ProcessHealth.uncleanRestarts(context))
                 .put("gate", hasGate())
                 .put("lastTickSeconds", if (service == null) -1 else ((SystemClock.elapsedRealtime() - service.lastTick) / 1000))
                 .put("lastError", service?.lastGateError ?: "")

@@ -47,6 +47,12 @@ object Prefs {
     fun serviceRunning(c: Context): Boolean = sp(c).getBoolean("service_running", false)
     fun setServiceRunning(c: Context, v: Boolean) = sp(c).edit().putBoolean("service_running", v).apply()
 
+    /** 无障碍被系统或用户关掉的累计次数，以及最后一次的时间（#120：红米电视会被系统清理连带关掉） */
+    fun accessibilityLostCount(c: Context): Int = sp(c).getInt("accessibility_lost_count", 0)
+    fun setAccessibilityLostCount(c: Context, v: Int) = sp(c).edit().putInt("accessibility_lost_count", v).apply()
+    fun accessibilityLostAt(c: Context): Long = sp(c).getLong("accessibility_lost_at", 0L)
+    fun setAccessibilityLostAt(c: Context, v: Long) = sp(c).edit().putLong("accessibility_lost_at", v).apply()
+
     /** 通知权限是否已自动询问过；拒绝后不再自动弹，仍可从列表手动再请求。 */
     fun notificationAsked(c: Context): Boolean = sp(c).getBoolean("notification_asked", false)
     fun setNotificationAsked(c: Context, v: Boolean) = sp(c).edit().putBoolean("notification_asked", v).apply()
