@@ -1,21 +1,21 @@
 {
-  "version": "0.3.25",
-  "versionCode": 30,
+  "version": "0.3.26",
+  "versionCode": 31,
   "force": false,
-  "notes": "· #122 海信 VIDAA 悬浮窗被视频画面盖住：新增「强制使用全屏学习页」开关，探针权限 + 正在播放视频时自动改走全屏学习页\n· AI 连接超时放宽到 20 秒，区分「连不上地址」和「模型太慢」，报错带主机名",
-  "publishedAt": "2026-11-10T14:26:18.941Z",
+  "notes": "• 公益视频：家长改「每次视频学习分钟」立即生效，已看进度保留\n• 公益视频播放失败时直接显示原因并停止重播，不再卡在播放页无限循环\n• 跨天或更换视频地址后旧任务作废，播放页自动回到学习页\n• 诊断新增「被系统清理次数」和「无障碍被关掉次数」，便于排查固件清理后台连带关掉无障碍",
+  "publishedAt": "2026-11-11T15:25:48.005Z",
   "assets": {
     "tv": {
-      "name": "StudyOnTV-Android-TV-v0.3.25.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.25/StudyOnTV-Android-TV-v0.3.25.apk",
-      "sha256": "3f9fc578e1e709abb0a4fc6e53f095a955341e5c6e47e7ec738882bc8f6a8c1e",
-      "size": 3373013
+      "name": "StudyOnTV-Android-TV-v0.3.26.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.26/StudyOnTV-Android-TV-v0.3.26.apk",
+      "sha256": "3132912ed856c42b3e4b9569e3758ec48894b12850bc1264029900a1103943ae",
+      "size": 3375861
     },
     "mobile": {
-      "name": "StudyOnTV-Mobile-v0.3.25.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.25/StudyOnTV-Mobile-v0.3.25.apk",
-      "sha256": "277a5292cb3fe9e9d3dd4295147c04c30db8169d4ad131059f9b2233f73dca6f",
-      "size": 3375008
+      "name": "StudyOnTV-Mobile-v0.3.26.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.26/StudyOnTV-Mobile-v0.3.26.apk",
+      "sha256": "20ae297a0a6149d1385f864dce6f9893efba8c7dc0b0283f65112ec67773d13f",
+      "size": 3377682
     }
   }
 }
