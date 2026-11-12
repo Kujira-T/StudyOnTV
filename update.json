@@ -1,21 +1,21 @@
 {
-  "version": "0.3.26",
-  "versionCode": 31,
+  "version": "0.3.27",
+  "versionCode": 32,
   "force": false,
-  "notes": "• 公益视频：家长改「每次视频学习分钟」立即生效，已看进度保留\n• 公益视频播放失败时直接显示原因并停止重播，不再卡在播放页无限循环\n• 跨天或更换视频地址后旧任务作废，播放页自动回到学习页\n• 诊断新增「被系统清理次数」和「无障碍被关掉次数」，便于排查固件清理后台连带关掉无障碍",
-  "publishedAt": "2026-11-11T15:25:48.005Z",
+  "notes": "• 新增「孩子档案」：每个孩子单独记录学习进度、使用时长和奖励额度，电视上先选名字再开始\n• 自动 AI 补题可以选题型，只补选择题也行\n• 朗读语言可设粤语 / 台湾国语 / 跟随系统语言\n• 权限引导页与家长后台新增「打开系统设置」",
+  "publishedAt": "2026-11-12T14:03:25.739Z",
   "assets": {
     "tv": {
-      "name": "StudyOnTV-Android-TV-v0.3.26.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.26/StudyOnTV-Android-TV-v0.3.26.apk",
-      "sha256": "3132912ed856c42b3e4b9569e3758ec48894b12850bc1264029900a1103943ae",
-      "size": 3375861
+      "name": "StudyOnTV-Android-TV-v0.3.27.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.27/StudyOnTV-Android-TV-v0.3.27.apk",
+      "sha256": "d06224cac1a4a2ee00b5c70ccbb5b73b91fd2ab4552b104d8e0f779b818b4753",
+      "size": 3383085
     },
     "mobile": {
-      "name": "StudyOnTV-Mobile-v0.3.26.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.26/StudyOnTV-Mobile-v0.3.26.apk",
-      "sha256": "20ae297a0a6149d1385f864dce6f9893efba8c7dc0b0283f65112ec67773d13f",
-      "size": 3377682
+      "name": "StudyOnTV-Mobile-v0.3.27.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.27/StudyOnTV-Mobile-v0.3.27.apk",
+      "sha256": "09924e37baf356bc1fc1924f7cb7099a002ce902ce929709e289207431ee6f88",
+      "size": 3384042
     }
   }
 }
