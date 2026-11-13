@@ -50,6 +50,7 @@ export async function previewApi(path:string,method:string,body:any){
  if(route==='/api/questions/delete'){const count=questions.length;questions=questions.filter(q=>!body.ids.includes(q.id));return{deleted:count-questions.length};}
  if(route.startsWith('/api/questions/')&&method==='DELETE'){questions=questions.filter(q=>q.id!==decodeURIComponent(route.split('/').pop()!));return{ok:true};}
  if(route==='/api/device'){if(method==='PUT')device={...device,...body};return structuredClone(device);}
+ if(route==='/api/device/launcher'){device.launcherHidden=!!body.hidden;return{ok:true,launcherHidden:device.launcherHidden};}
  if(route==='/api/device/bugly'){device.buglyConsent=!!body.enabled;return{ok:true};}
  if(route==='/api/grading'){if(method==='PUT')grading={...grading,...body};return structuredClone(grading);}
  if(route==='/api/reviews')return{items:[]};

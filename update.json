@@ -1,21 +1,21 @@
 {
-  "version": "0.3.28",
-  "versionCode": 33,
+  "version": "0.3.29",
+  "versionCode": 34,
   "force": false,
-  "notes": "• 题库会记住每道题最近一次的对错，可开启「错题优先」：错题先出，加练题也从错题里选，答对一次就回到正常顺序\n• 题库页可以只看错题，题目详情显示最近一次答对 / 答错\n• 规则页文案更直白：「时间规则」「锁定时禁止改系统设置」「全天管控」「节假日按周日时间」，可用时间加了绿 / 灰图例",
-  "publishedAt": "2026-11-13T06:40:40.685Z",
+  "notes": "• 家长面板「设置 → 设备」新增「隐藏桌面图标」：关掉后桌面和电视应用列表不再显示入口，孩子不容易误点或随手卸载\n• 只隐藏桌面入口，管控、后台服务、无障碍和开机自启照常运行；点通知栏常驻通知，或在面板里关掉开关即可恢复",
+  "publishedAt": "2026-11-13T10:24:18Z",
   "assets": {
     "tv": {
-      "name": "StudyOnTV-Android-TV-v0.3.28.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.28/StudyOnTV-Android-TV-v0.3.28.apk",
-      "sha256": "c1e6da590240732fbc201a5f3dda7ed79507304979636f8630e325a8124418fa",
-      "size": 3383627
+      "name": "StudyOnTV-Android-TV-v0.3.29.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.29/StudyOnTV-Android-TV-v0.3.29.apk",
+      "sha256": "b41cec8bb21c3f5c991254407e39837f2682fe261e933549ff43f29a4ad0d73d",
+      "size": 3384393
     },
     "mobile": {
-      "name": "StudyOnTV-Mobile-v0.3.28.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.28/StudyOnTV-Mobile-v0.3.28.apk",
-      "sha256": "88ffe838d240c98852a723a7585ef55df8b07ea94bacbbc8113de2859a29f7e4",
-      "size": 3384737
+      "name": "StudyOnTV-Mobile-v0.3.29.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.29/StudyOnTV-Mobile-v0.3.29.apk",
+      "sha256": "5725a1dbb5f88b7ce50940959d355497b8d2ddf979dd400496d01629c65365a2",
+      "size": 3385714
     }
   }
 }

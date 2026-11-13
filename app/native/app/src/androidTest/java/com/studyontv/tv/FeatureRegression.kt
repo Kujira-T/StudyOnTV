@@ -6,6 +6,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object FeatureRegression {
+    /** 单独跑隐藏桌面图标（-e launcher 1），改这块时不用等整套回归 */
+    fun launcher(context: Context) = launcherIcon(context)
+
     fun run(context: Context) {
         migration(context)
         childMigration(context)
@@ -142,6 +145,7 @@ object FeatureRegression {
             store.deleteQuestions(listOf("canto"))
             children(store, engine)
             wrongBank(context)
+            launcherIcon(context)
             try { BankAutomation.save(store, JSONObject().put("sources", JSONArray().put(JSONObject().put("name", "invalid").put("url", "file:///tmp/bank.json"))));error("invalid source accepted") } catch (_: IllegalArgumentException) { }
         } finally { store.close();context.deleteDatabase(name) }
     }
@@ -243,6 +247,34 @@ object FeatureRegression {
         } finally {
             store.close()
             context.deleteDatabase(name)
+        }
+    }
+
+    /** 隐藏桌面图标：只关启动入口 alias，MainActivity 和进程不受影响，随时可以恢复 */
+    private fun launcherIcon(context: Context) {
+        val pm = context.packageManager
+        // alias 名跟着 Manifest 包名走，不是 applicationId（调试包带 .debug 后缀也不会变）
+        val alias = pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_ACTIVITIES)
+            .activities!!.first { it.targetActivity == MainActivity::class.java.name }
+        val launcher = android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_LAUNCHER).setPackage(context.packageName)
+        val before = LauncherIcon.hidden(context)
+        try {
+            check(LauncherIcon.setHidden(context, true)) { "隐藏后组件应当处于禁用状态" }
+            check(LauncherIcon.hidden(context)) { "隐藏状态要能读回来" }
+            check(pm.queryIntentActivities(launcher, 0).none { it.activityInfo.name == alias.name }) {
+                "隐藏后桌面不应该再列出这个入口"
+            }
+            // 应用本身还在：入口只是 alias，打开主界面和通知栏跳转都不受影响
+            check(pm.getActivityInfo(android.content.ComponentName(context, MainActivity::class.java.name), 0) != null) {
+                "隐藏图标不能动到 MainActivity"
+            }
+            check(!LauncherIcon.setHidden(context, false)) { "恢复后组件应当重新启用" }
+            check(pm.queryIntentActivities(launcher, 0).any { it.activityInfo.name == alias.name }) {
+                "恢复后桌面入口要重新出现"
+            }
+        } finally {
+            LauncherIcon.setHidden(context, before)
         }
     }
 
