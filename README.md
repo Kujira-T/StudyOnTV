@@ -171,6 +171,19 @@ A：题库可以在手机管理页导出 JSON，换电视后重新导入。
 
 ---
 
+## 交流群
+
+<div align="center">
+
+<img src="./docs/wechat-group.jpg" width="240" alt="家长交流微信群二维码">
+
+**家长交流群** · 使用问题、设备兼容和功能建议都可以在群里聊<br>
+<sub>微信群二维码 7 天内有效，过期请在 <a href="https://github.com/chadyi/StudyOnTV/issues">Issues</a> 留言索取；也欢迎直接在 Issues 里反馈</sub>
+
+</div>
+
+---
+
 ## 社区建议与致谢
 
 - [LINUX DO](https://linux.do) **xiuweng**：支持手机管控、通过隐藏手势重新打开管理入口，以及答错后累计加练、重启保留加练池。
