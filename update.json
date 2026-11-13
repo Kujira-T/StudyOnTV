@@ -1,21 +1,21 @@
 {
-  "version": "0.3.27",
-  "versionCode": 32,
+  "version": "0.3.28",
+  "versionCode": 33,
   "force": false,
-  "notes": "• 新增「孩子档案」：每个孩子单独记录学习进度、使用时长和奖励额度，电视上先选名字再开始\n• 自动 AI 补题可以选题型，只补选择题也行\n• 朗读语言可设粤语 / 台湾国语 / 跟随系统语言\n• 权限引导页与家长后台新增「打开系统设置」",
-  "publishedAt": "2026-11-12T14:03:25.739Z",
+  "notes": "• 题库会记住每道题最近一次的对错，可开启「错题优先」：错题先出，加练题也从错题里选，答对一次就回到正常顺序\n• 题库页可以只看错题，题目详情显示最近一次答对 / 答错\n• 规则页文案更直白：「时间规则」「锁定时禁止改系统设置」「全天管控」「节假日按周日时间」，可用时间加了绿 / 灰图例",
+  "publishedAt": "2026-11-13T06:40:40.685Z",
   "assets": {
     "tv": {
-      "name": "StudyOnTV-Android-TV-v0.3.27.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.27/StudyOnTV-Android-TV-v0.3.27.apk",
-      "sha256": "d06224cac1a4a2ee00b5c70ccbb5b73b91fd2ab4552b104d8e0f779b818b4753",
-      "size": 3383085
+      "name": "StudyOnTV-Android-TV-v0.3.28.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.28/StudyOnTV-Android-TV-v0.3.28.apk",
+      "sha256": "c1e6da590240732fbc201a5f3dda7ed79507304979636f8630e325a8124418fa",
+      "size": 3383627
     },
     "mobile": {
-      "name": "StudyOnTV-Mobile-v0.3.27.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.27/StudyOnTV-Mobile-v0.3.27.apk",
-      "sha256": "09924e37baf356bc1fc1924f7cb7099a002ce902ce929709e289207431ee6f88",
-      "size": 3384042
+      "name": "StudyOnTV-Mobile-v0.3.28.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.3.28/StudyOnTV-Mobile-v0.3.28.apk",
+      "sha256": "88ffe838d240c98852a723a7585ef55df8b07ea94bacbbc8113de2859a29f7e4",
+      "size": 3384737
     }
   }
 }

@@ -141,6 +141,7 @@ object FeatureRegression {
             store.upsertQuestion(JSONObject("""{"id":"canto","q":"粵語題目","a":["A","B"],"k":0,"language":"zh-HK"}"""))
             store.deleteQuestions(listOf("canto"))
             children(store, engine)
+            wrongBank(context)
             try { BankAutomation.save(store, JSONObject().put("sources", JSONArray().put(JSONObject().put("name", "invalid").put("url", "file:///tmp/bank.json"))));error("invalid source accepted") } catch (_: IllegalArgumentException) { }
         } finally { store.close();context.deleteDatabase(name) }
     }
@@ -187,6 +188,62 @@ object FeatureRegression {
         try { store.deleteChild(LocalStore.DEFAULT_CHILD); error("default child deleted") } catch (_: IllegalArgumentException) { }
         try { store.switchChild("missing"); error("missing child accepted") } catch (_: IllegalArgumentException) { }
         store.set("used_ms", "0")
+    }
+
+    /** #136 错题库：记录每题最近一次作答结果，错题优先，加练题从错题里出 */
+    private fun wrongBank(context: Context) {
+        val name = "feature-wrong.db"
+        context.deleteDatabase(name)
+        val store = LocalStore(context, name)
+        try {
+            val engine = LearningEngine(store)
+            engine.saveConfig(JSONObject().put("allDay", true).put("dailyLimitEnabled", false).put("roundsLimitEnabled", false)
+                .put("playMode", "practice").put("extraEnabled", true)
+                .put("wrongThreshold", 1).put("extraQuestions", 1).put("wrongReviewSeconds", 0).put("wrongFirst", true))
+            check(store.config().getBoolean("wrongFirst")) { "错题优先开关要能保存" }
+            listOf("q0", "q1", "q2", "q3").forEach {
+                store.upsertQuestion(JSONObject("""{"id":"$it","q":"$it","a":["对","错"],"k":0}"""))
+            }
+            fun statsOf(id: String): JSONObject {
+                val all = store.questions()
+                for (i in 0 until all.length()) if (all.getJSONObject(i).getString("id") == id) return all.getJSONObject(i).getJSONObject("stats")
+                error("题库里找不到 $id")
+            }
+            check(statsOf("q0").isNull("lastCorrect")) { "还没作答过的题不能算错题" }
+
+            store.answered("q0", false)
+            store.answered("q2", false)
+            check(statsOf("q0").get("lastCorrect") == false) { "答错后要记成错题" }
+            val ordered = store.questions(wrongFirst = true)
+            check(ordered.getJSONObject(0).getString("id") in listOf("q0", "q2") && ordered.getJSONObject(1).getString("id") in listOf("q0", "q2")) { "错题要排在最前面" }
+
+            var round = engine.start()
+            val firstId = round.getJSONObject("question").getString("id")
+            check(firstId in listOf("q0", "q2")) { "错题优先：第一题应当先出错题，实际 $round" }
+            var result = engine.answer(answer(round, 1)) // 答错，攒出 1 道加练题
+            check(!result.getBoolean("correct")) { "这题应当判错: $result" }
+
+            // 加练阶段：错题里还有另一道，必须从错题库里出
+            val extra = result.getJSONObject("next")
+            val extraId = extra.getJSONObject("question").getString("id")
+            check(extra.getBoolean("extra")) { "下一题应当是加练题: $extra" }
+            check(extraId != firstId && statsOf(extraId).get("lastCorrect") == false) { "加练题必须从错题里出，实际 $extra" }
+
+            result = engine.answer(answer(extra, 0)) // 答对加练题，错题库清空
+            check(result.getBoolean("correct"))
+            check(statsOf(firstId).get("lastCorrect") == false && statsOf(extraId).get("lastCorrect") == true) { "答对一次后要退出错题库" }
+            val back = result.getJSONObject("next")
+            check(back.getJSONObject("question").getString("id") == firstId) { "答错的题要重新排到前面，实际 $back" }
+
+            // 错题清空后抽题照常进行，不能把一轮卡住
+            result = engine.answer(answer(back, 0))
+            check(result.getBoolean("correct"))
+            val clean = store.questions(wrongFirst = true)
+            check((0 until clean.length()).none { clean.getJSONObject(it).getJSONObject("stats").get("lastCorrect") == false }) { "都已经答对，不该再有错题" }
+        } finally {
+            store.close()
+            context.deleteDatabase(name)
+        }
     }
 
     /** 旧库（v6）升级：事件与复习进度补上 child 列，旧数据归第一个孩子 */
@@ -237,6 +294,27 @@ object FeatureRegression {
                 check(question.getString("id") == "preserved" && question.getJSONObject("stats").getInt("presented") == 0)
             }
         } finally { context.deleteDatabase(name) }
+        // v7 老库的 question_stats 没有 last_correct，升级时要补上列，且老数据不丢
+        val v7 = "migration-v7-regression.db"
+        context.deleteDatabase(v7)
+        try {
+            LocalStore(context, v7).use { old ->
+                old.upsertQuestion(JSONObject("""{"id":"kept","q":"kept","a":["A","B"],"k":0}"""))
+                old.answered("kept", true)
+                old.writableDatabase.execSQL("DROP TABLE question_stats")
+                old.writableDatabase.execSQL("CREATE TABLE question_stats(qid TEXT PRIMARY KEY, presented INTEGER NOT NULL DEFAULT 0, answered INTEGER NOT NULL DEFAULT 0, correct INTEGER NOT NULL DEFAULT 0, last_at INTEGER NOT NULL DEFAULT 0)")
+                old.writableDatabase.execSQL("INSERT INTO question_stats(qid,answered,correct) VALUES('kept',1,1)")
+                old.writableDatabase.version = 7
+            }
+            LocalStore(context, v7).use { migrated ->
+                check(migrated.readableDatabase.version == 8)
+                val stats = migrated.questions().getJSONObject(0).getJSONObject("stats")
+                check(stats.getInt("answered") == 1 && stats.getInt("correct") == 1) { "升级不能丢掉旧统计: $stats" }
+                check(stats.isNull("lastCorrect")) { "旧库没有最近一次对错，应当当作未作答: $stats" }
+                migrated.answered("kept", false)
+                check(migrated.questions().getJSONObject(0).getJSONObject("stats").get("lastCorrect") == false) { "升级后要能记错题" }
+            }
+        } finally { context.deleteDatabase(v7) }
     }
     private fun remoteSync(store: LocalStore) {
         val server = java.net.ServerSocket(0, 4, java.net.InetAddress.getByName("127.0.0.1"))

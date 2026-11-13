@@ -475,7 +475,8 @@ class LearningEngine(private val store: LocalStore) {
         val levels = scope("quizLevels")
         val selectedLevel = round.optString("level")
         val banks = scope("quizBanks")
-        val all = store.questions(limit = 5000, spaced = config.optBoolean("spacedRepetitionEnabled"))
+        val wrongFirst = config.optBoolean("wrongFirst")
+        val all = store.questions(limit = 5000, spaced = config.optBoolean("spacedRepetitionEnabled"), wrongFirst = wrongFirst)
         val bank = JSONArray()
         for (i in 0 until all.length()) {
             val item = all.getJSONObject(i)
@@ -488,17 +489,26 @@ class LearningEngine(private val store: LocalStore) {
         require(bank.length() > 0) {
             if (subjects.isNotEmpty() || levels.isNotEmpty()) "当前答题范围没有题目，请检查题库的科目 / 年级或调整答题范围" else "题库为空，请由家长添加题目"
         }
-        val last = round.optJSONObject("question")?.optString("id")
-        var question = bank.getJSONObject(0)
-        for (i in 0 until bank.length()) {
-            if (bank.getJSONObject(i).optString("id") != last) { question = bank.getJSONObject(i); break }
-        }
-        if (config.optBoolean("shuffleOptions")) question = QuestionOptions.shuffled(question)
-        store.presented(question.getString("id"))
-        round.put("question", question).put("nonce", UUID.randomUUID().toString())
+        // 这一题是不是加练题：必须在选题前算出来，错题优先靠它决定要不要只从错题里出
         val extraEnabled = round.optJSONObject("rules")?.optBoolean("extraEnabled", true) ?: true
-        round.put("extra", if (round.optString("mode") == "count") false else if (round.optString("mode") == "practice") number("extra_pool") > 0
-            else extraEnabled && round.optInt("answered") >= round.getInt("target"))
+        val extraStage = if (round.optString("mode") == "count") false else if (round.optString("mode") == "practice") number("extra_pool") > 0
+            else extraEnabled && round.optInt("answered") >= round.getInt("target")
+        val last = round.optJSONObject("question")?.optString("id")
+        fun pick(onlyWrong: Boolean): JSONObject? {
+            for (i in 0 until bank.length()) {
+                val item = bank.getJSONObject(i)
+                if (item.optString("id") == last) continue
+                if (onlyWrong && item.optJSONObject("stats")?.optBoolean("lastCorrect", true) != false) continue
+                return item
+            }
+            return null
+        }
+        // 错题优先（#136）：加练题先出错题库里的题，错题不够时再按正常顺序补
+        val question = (if (wrongFirst && extraStage) pick(true) else null) ?: pick(false) ?: bank.getJSONObject(0)
+        val presented = if (config.optBoolean("shuffleOptions")) QuestionOptions.shuffled(question) else question
+        store.presented(presented.getString("id"))
+        round.put("question", presented).put("nonce", UUID.randomUUID().toString())
+        round.put("extra", extraStage)
     }
 
     private fun publicRound(round: JSONObject): JSONObject {
